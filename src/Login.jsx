@@ -1,123 +1,152 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { UtensilsCrossed, AlertCircle } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-	
-	const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  
-	const navigate = useNavigate();
+
+  const navigate = useNavigate();
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    setError(''); // Reset error setiap kali tombol ditekan
+    setError('');
     setIsLoading(true);
 
-    try {
-      // 4. Tembak API Backend Django
-      const response = await fetch('http://127.0.0.1:8000/api/v1/auth/login/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
+    // Simulate a small delay for UX
+    await new Promise((resolve) => setTimeout(resolve, 800));
 
-      const data = await response.json();
-
-      if (response.ok) {
-        // 5. Jika sukses, simpan Token JWT di localStorage browser
-        localStorage.setItem('access_token', data.access);
-        localStorage.setItem('refresh_token', data.refresh);
-        
-        // 6. Arahkan ke halaman dashboard
-        navigate('/dashboard');
-      } else {
-        // 7. Jika ditolak oleh Django (kredensial salah atau bukan is_staff)
-        setError(data.detail || 'Email atau password salah! Silakan coba lagi.');
-      }
-    } catch (err) {
-      // 8. Jika server Django mati / belum di-run
-      setError('Tidak dapat terhubung ke server. Pastikan backend berjalan.');
-    } finally {
-      setIsLoading(false);
+    // Hardcoded credentials
+    if (email === 'admin@email.com' && password === '123admin') {
+      localStorage.setItem('feast_authenticated', 'true');
+      navigate('/dashboard');
+    } else {
+      setError('Invalid email or password. Please try again.');
     }
+
+    setIsLoading(false);
   };
 
   return (
-    <div className="min-h-screen bg-darkBg flex items-center justify-center p-4 font-sans">
-      <div className="max-w-md w-full bg-cardBg rounded-2xl shadow-xl border border-gray-800 p-8">
-        
-        <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 bg-primary/20 text-primary rounded-2xl flex items-center justify-center mb-4">
-            <UtensilsCrossed size={32} />
+    <div className="min-h-screen bg-feast-bg font-vietnam flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Decorative background blobs */}
+      <motion.div 
+        animate={{ scale: [1, 1.1, 1], rotate: [0, 90, 0] }} 
+        transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+        className="absolute top-0 left-0 w-[500px] h-[500px] bg-feast-amber/10 rounded-full blur-[120px] -translate-x-1/2 -translate-y-1/2" 
+      />
+      <motion.div 
+        animate={{ scale: [1, 1.2, 1], rotate: [0, -90, 0] }} 
+        transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
+        className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-feast-sunset/8 rounded-full blur-[100px] translate-x-1/3 translate-y-1/3" 
+      />
+
+      {/* Login Card */}
+      <motion.div 
+        initial={{ opacity: 0, y: 30, scale: 0.95 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ type: "spring", stiffness: 300, damping: 25 }}
+        className="relative z-10 w-full max-w-md"
+      >
+        <div className="bg-white rounded-3xl shadow-xl shadow-black/5 p-10">
+          {/* Logo */}
+          <div className="text-center mb-8">
+            <h1 className="text-4xl font-bold font-jakarta text-feast-sunset tracking-wider">
+              FEAST
+            </h1>
+            <p className="text-feast-dark-muted text-xs uppercase tracking-[0.25em] mt-1 font-medium">
+              The Kinetic Kitchen
+            </p>
           </div>
-          <h2 className="text-3xl font-bold text-white tracking-wider">FEAST</h2>
-          <p className="text-gray-400 mt-2 text-sm">Welcome back! Please login to your account.</p>
+
+          {/* Welcome */}
+          <h2 className="text-2xl font-bold font-jakarta text-feast-dark mb-8">
+            Welcome Back
+          </h2>
+
+          {/* Error */}
+          {error && (
+            <div className="mb-6 bg-red-50 rounded-xl p-4 flex items-center gap-3 text-red-600 text-sm">
+              <AlertCircle size={18} className="flex-shrink-0" />
+              <p>{error}</p>
+            </div>
+          )}
+
+          <form onSubmit={handleLogin} className="space-y-5">
+            {/* Email */}
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-[0.15em] text-feast-dark-muted mb-2">
+                Email Address
+              </label>
+              <div className="relative">
+                <Mail size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-feast-dark-muted/50" />
+                <input
+                  type="email"
+                  placeholder="chef@feast.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full bg-feast-bg rounded-xl pl-11 pr-4 py-3.5 text-feast-dark font-vietnam text-sm placeholder-feast-dark-muted/40 focus:outline-none focus:ring-2 focus:ring-feast-sunset/30 transition-all"
+                  required
+                  disabled={isLoading}
+                />
+              </div>
+            </div>
+
+            {/* Password */}
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-[0.15em] text-feast-dark-muted mb-2">
+                Password
+              </label>
+              <div className="relative">
+                <Lock size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-feast-dark-muted/50" />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full bg-feast-bg rounded-xl pl-11 pr-12 py-3.5 text-feast-dark font-vietnam text-sm placeholder-feast-dark-muted/40 focus:outline-none focus:ring-2 focus:ring-feast-sunset/30 transition-all"
+                  required
+                  disabled={isLoading}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-feast-dark-muted/50 hover:text-feast-dark-muted transition-colors"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <Eye size={18} /> : <EyeOff size={18} />}
+                </button>
+              </div>
+            </div>
+
+            {/* Login Button */}
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              type="submit"
+              disabled={isLoading}
+              className={`w-full py-3.5 rounded-full text-white font-semibold text-sm transition-all duration-300 mt-2 ${
+                isLoading
+                  ? 'bg-feast-dark-muted cursor-not-allowed'
+                  : 'bg-gradient-to-r from-feast-sunset to-feast-sunset-light hover:shadow-lg hover:shadow-feast-sunset/25 hover:-translate-y-0.5'
+              }`}
+            >
+              {isLoading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <Loader2 className="animate-spin w-5 h-5" />
+                  Verifying...
+                </span>
+              ) : (
+                'Login'
+              )}
+            </motion.button>
+          </form>
         </div>
-
-        {/* Notifikasi Error Kustom yang estetik */}
-        {error && (
-          <div className="mb-6 bg-red-500/10 border border-red-500/50 rounded-lg p-3 flex items-center text-red-500 text-sm">
-            <AlertCircle size={18} className="mr-2 flex-shrink-0" />
-            <p>{error}</p>
-          </div>
-        )}
-
-        <form onSubmit={handleLogin} className="space-y-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Email Karyawan</label>
-            <input 
-              type="email" 
-              placeholder="Enter your email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full bg-darkBg border border-gray-700 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors disabled:opacity-50"
-              required
-              disabled={isLoading}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Password</label>
-            <input 
-              type="password" 
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-darkBg border border-gray-700 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors disabled:opacity-50"
-              required
-              disabled={isLoading}
-            />
-          </div>
-
-          <button 
-            type="submit" 
-            disabled={isLoading}
-            className={`w-full font-semibold py-3 px-4 rounded-lg transition-colors mt-4 text-white flex justify-center items-center ${
-              isLoading 
-                ? 'bg-gray-600 cursor-not-allowed' 
-                : 'bg-primary hover:bg-purple-600'
-            }`}
-          >
-            {isLoading ? (
-               <span className="flex items-center">
-                 <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                 </svg>
-                 Memverifikasi...
-               </span>
-            ) : (
-              'Sign In'
-            )}
-          </button>
-        </form>
-        
-      </div>
+      </motion.div>
     </div>
   );
 };
