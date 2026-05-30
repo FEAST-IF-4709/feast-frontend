@@ -62,13 +62,13 @@ const Footer = () => {
 
           {/* CTA */}
           <div>
-            <h4 className="text-sm font-semibold uppercase tracking-widest text-gray-400 mb-5">Get Started</h4>
-            <p className="text-gray-400 text-sm mb-5">Ready to join the alliance? Sign in to your dashboard.</p>
+            <h4 className="text-sm font-semibold uppercase tracking-widest text-gray-400 mb-5">Partnership</h4>
+            <p className="text-gray-400 text-sm mb-5">Interested in joining the FEAST ecosystem? Get in touch with our team.</p>
             <Link
-              to="/login"
+              to="/contact"
               className="inline-flex items-center px-6 py-2.5 bg-feast-sunset text-white text-sm font-semibold rounded-full hover:bg-feast-sunset-dark transition-all duration-200 hover:shadow-lg hover:shadow-feast-sunset/30"
             >
-              Admin Login
+              Contact Us
               <ArrowUpRight size={16} className="ml-2" />
             </Link>
           </div>

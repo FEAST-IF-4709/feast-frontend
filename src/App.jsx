@@ -10,6 +10,7 @@ import CareerPage from './pages/CareerPage';
 // Admin
 import Login from './Login';
 import AdminLayout from './components/AdminLayout';
+import ProtectedRoute from './components/ProtectedRoute';
 import Dashboard from './Dashboard';
 import RolesPage from './pages/RolesPage';
 import OrderPage from './pages/OrderPage';
@@ -31,8 +32,8 @@ const App = () => {
         {/* Admin Login */}
         <Route path="/login" element={<Login />} />
 
-        {/* Admin Pages (wrapped with Sidebar) */}
-        <Route element={<AdminLayout />}>
+        {/* Admin Pages (protected + wrapped with Sidebar) */}
+        <Route element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/roles" element={<RolesPage />} />
           <Route path="/order" element={<OrderPage />} />

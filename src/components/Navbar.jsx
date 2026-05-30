@@ -67,16 +67,7 @@ const Navbar = () => {
             })}
           </div>
 
-          {/* Get Started Button */}
-          <div className="hidden md:block">
-            <Link
-              to="/login"
-              id="get-started-btn"
-              className="inline-flex items-center px-6 py-2.5 bg-feast-sunset text-white text-sm font-semibold font-vietnam rounded-full hover:bg-feast-sunset-dark transition-all duration-200 hover:shadow-lg hover:shadow-feast-sunset/20"
-            >
-              Get Started
-            </Link>
-          </div>
+
 
           {/* Mobile Hamburger */}
           <button
@@ -113,14 +104,7 @@ const Navbar = () => {
               </Link>
             );
           })}
-          <div className="pt-3 pb-2">
-            <Link
-              to="/login"
-              className="block w-full text-center px-6 py-3 bg-feast-sunset text-white text-sm font-semibold font-vietnam rounded-full hover:bg-feast-sunset-dark transition-colors"
-            >
-              Get Started
-            </Link>
-          </div>
+
         </div>
       </div>
     </nav>

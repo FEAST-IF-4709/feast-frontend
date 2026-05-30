@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -11,24 +11,43 @@ import {
   TableProperties,
   LogOut,
 } from 'lucide-react';
+import api from '../api/client';
+import { clearTokens, getRefreshToken, hasPermission } from '../api/auth';
 
-const sidebarItems = [
-  { label: 'Dashboard', path: '/dashboard', icon: LayoutGrid },
-  { label: 'Order', path: '/order', icon: ShoppingCart },
-  { label: 'Restaurant Profile', path: '/restaurant-profile', icon: Store },
-  { label: 'Roles', path: '/roles', icon: ShieldCheck },
-  { label: 'Kitchen', path: '/kitchen', icon: ChefHat },
-  { label: 'Marketing', path: '/marketing', icon: Megaphone },
-  { label: 'Table', path: '/table', icon: TableProperties },
+const allSidebarItems = [
+  { label: 'Dashboard', path: '/dashboard', icon: LayoutGrid, permission: 'dashboard.view' },
+  { label: 'Order', path: '/order', icon: ShoppingCart, permission: 'cashier.order.create' },
+  { label: 'Restaurant Profile', path: '/restaurant-profile', icon: Store, permission: null },
+  { label: 'Roles', path: '/roles', icon: ShieldCheck, permission: 'rbac.role.view' },
+  { label: 'Kitchen', path: '/kitchen', icon: ChefHat, permission: 'kitchen.order.view' },
+  { label: 'Marketing', path: '/marketing', icon: Megaphone, permission: null },
+  { label: 'Table', path: '/table', icon: TableProperties, permission: 'tables.view' },
 ];
 
 const Sidebar = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    localStorage.removeItem('feast_authenticated');
-    navigate('/login');
+  // Filter sidebar items based on user permissions
+  const sidebarItems = useMemo(() => {
+    return allSidebarItems.filter((item) => {
+      if (!item.permission) return true; // No permission required = always show
+      return hasPermission(item.permission);
+    });
+  }, [location.pathname]); // re-evaluate when route changes
+
+  const handleLogout = async () => {
+    try {
+      const refreshToken = getRefreshToken();
+      if (refreshToken) {
+        await api.post('/auth/logout/', { refresh: refreshToken });
+      }
+    } catch {
+      // Even if logout API fails, we still clear local tokens
+    } finally {
+      clearTokens();
+      navigate('/login');
+    }
   };
 
   const containerVariants = {

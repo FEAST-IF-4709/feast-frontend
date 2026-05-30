@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import api from './api/client';
+import { saveTokens } from './api/auth';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -17,18 +19,36 @@ const Login = () => {
     setError('');
     setIsLoading(true);
 
-    // Simulate a small delay for UX
-    await new Promise((resolve) => setTimeout(resolve, 800));
+    try {
+      const { data } = await api.post('/auth/staff/login/', { email, password });
 
-    // Hardcoded credentials
-    if (email === 'admin@email.com' && password === '123admin') {
-      localStorage.setItem('feast_authenticated', 'true');
+      // Save JWT tokens
+      saveTokens({
+        access: data.data.access,
+        refresh: data.data.refresh,
+      });
+
       navigate('/dashboard');
-    } else {
-      setError('Invalid email or password. Please try again.');
-    }
+    } catch (err) {
+      const status = err.response?.status;
+      const apiData = err.response?.data;
 
-    setIsLoading(false);
+      if (status === 401) {
+        setError('Email atau password salah. Silakan coba lagi.');
+      } else if (status === 400 && apiData?.errors) {
+        // Show first validation error
+        const firstError = apiData.errors[0];
+        setError(firstError?.detail || 'Input tidak valid.');
+      } else if (status === 429) {
+        setError('Terlalu banyak percobaan login. Tunggu beberapa saat.');
+      } else if (!err.response) {
+        setError('Tidak dapat terhubung ke server. Pastikan backend berjalan.');
+      } else {
+        setError(apiData?.message || 'Terjadi kesalahan. Coba lagi.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

@@ -1,21 +1,88 @@
-import React, { useState } from 'react';
-import AdminLayout from './components/AdminLayout';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Search, Bell, Settings, TrendingUp, TrendingDown, Clock, MoreHorizontal, AlertTriangle } from 'lucide-react';
-
-import kineticKitchenImg from './assets/Kinetic Kitchen Action.jpg';
-import chefPlatingImg from './assets/Chef plating food.jpg';
-import dynamicFoodImg from './assets/Dynamic food plating.jpg';
+import { Search, Bell, Settings, TrendingUp, TrendingDown, MoreHorizontal, AlertTriangle, Loader2 } from 'lucide-react';
+import api from './api/client';
+import { getBrandId, getOutletId, getAccessToken } from './api/auth';
+import { connectDashboard } from './api/websocket';
 
 const Dashboard = () => {
   const [timePeriod, setTimePeriod] = useState('This Week');
+  const [summaryData, setSummaryData] = useState(null);
+  const [chartData, setChartData] = useState([]);
+  const [popularItems, setPopularItems] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const wsRef = useRef(null);
+
+  // Calculate date range based on selected period
+  const getDateRange = (period) => {
+    const now = new Date();
+    const to = now.toISOString().split('T')[0];
+    let from;
+    if (period === 'Today') {
+      from = to;
+    } else if (period === 'This Week') {
+      const d = new Date(now);
+      d.setDate(d.getDate() - 7);
+      from = d.toISOString().split('T')[0];
+    } else {
+      const d = new Date(now);
+      d.setDate(d.getDate() - 30);
+      from = d.toISOString().split('T')[0];
+    }
+    return { from, to };
+  };
+
+  const fetchDashboard = async () => {
+    try {
+      const { from, to } = getDateRange(timePeriod);
+      const brandId = getBrandId();
+
+      const [summaryRes, chartRes, popularRes] = await Promise.allSettled([
+        api.get(`/analytics/dashboard/summary/?date_from=${from}&date_to=${to}`),
+        api.get(`/analytics/dashboard/daily-chart/?days=${timePeriod === 'Today' ? 1 : timePeriod === 'This Week' ? 7 : 30}`),
+        brandId ? api.get(`/recommendations/brands/${brandId}/popular/?limit=5`) : Promise.resolve({ data: { data: [] } }),
+      ]);
+
+      if (summaryRes.status === 'fulfilled') setSummaryData(summaryRes.value.data.data);
+      if (chartRes.status === 'fulfilled') setChartData(chartRes.value.data.data || []);
+      if (popularRes.status === 'fulfilled') setPopularItems(popularRes.value.data.data || []);
+    } catch (err) {
+      console.error('Dashboard fetch error:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    setIsLoading(true);
+    fetchDashboard();
+  }, [timePeriod]);
+
+  // WebSocket for real-time updates
+  useEffect(() => {
+    const outletId = getOutletId();
+    const token = getAccessToken();
+    if (outletId && token) {
+      wsRef.current = connectDashboard(outletId, token, {
+        onMessage: (data) => {
+          // Refetch on any dashboard event
+          if (data.event) fetchDashboard();
+        },
+      });
+    }
+    return () => wsRef.current?.disconnect();
+  }, []);
+
+  const formatCurrency = (value) => {
+    const num = parseFloat(value || 0);
+    if (num >= 1000000) return `Rp${(num / 1000000).toFixed(1)}jt`;
+    if (num >= 1000) return `Rp${(num / 1000).toFixed(0)}rb`;
+    return `Rp${num.toLocaleString('id-ID')}`;
+  };
 
   const containerVariants = {
     hidden: { opacity: 0 },
-    show: {
-      opacity: 1,
-      transition: { staggerChildren: 0.1 }
-    }
+    show: { opacity: 1, transition: { staggerChildren: 0.1 } }
   };
 
   const itemVariants = {
@@ -47,7 +114,7 @@ const Dashboard = () => {
         </div>
       </header>
 
-      <motion.div 
+      <motion.div
         variants={containerVariants}
         initial="hidden"
         animate="show"
@@ -78,32 +145,38 @@ const Dashboard = () => {
           </div>
 
           {/* Stat Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            <StatCard
-              title="Total Revenue"
-              value="$12,450"
-              change="+14.5%"
-              isUp={true}
-              subtitle="vs last week"
-              iconColor="bg-feast-sunset/10 text-feast-sunset"
-            />
-            <StatCard
-              title="Total Orders"
-              value="342"
-              change="+8.2%"
-              isUp={true}
-              subtitle="vs last week"
-              iconColor="bg-feast-amber/10 text-feast-amber"
-            />
-            <StatCard
-              title="Avg Prep Time"
-              value="14m"
-              change="-2.1m"
-              isUp={true}
-              subtitle="vs last week"
-              iconColor="bg-feast-beetroot/10 text-feast-beetroot"
-            />
-          </div>
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="animate-spin w-8 h-8 text-feast-sunset" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <StatCard
+                title="Total Revenue"
+                value={formatCurrency(summaryData?.total_revenue)}
+                change={`${summaryData?.settled_orders || 0} settled`}
+                isUp={true}
+                subtitle={`${summaryData?.pending_orders || 0} pending`}
+                iconColor="bg-feast-sunset/10 text-feast-sunset"
+              />
+              <StatCard
+                title="Total Orders"
+                value={summaryData?.total_orders?.toString() || '0'}
+                change={`${summaryData?.settled_orders || 0} settled`}
+                isUp={true}
+                subtitle={`${summaryData?.pending_orders || 0} pending`}
+                iconColor="bg-feast-amber/10 text-feast-amber"
+              />
+              <StatCard
+                title="Pending Orders"
+                value={summaryData?.pending_orders?.toString() || '0'}
+                change="Awaiting"
+                isUp={false}
+                subtitle="payment"
+                iconColor="bg-feast-beetroot/10 text-feast-beetroot"
+              />
+            </div>
+          )}
         </motion.div>
 
         {/* Revenue Chart */}
@@ -114,45 +187,50 @@ const Dashboard = () => {
               <MoreHorizontal size={20} />
             </button>
           </div>
-          {/* Simple Bar Chart */}
-          <div className="flex items-end gap-4 h-48 px-4">
-            {[
-              { day: 'Mon', value: 40, orders: 35 },
-              { day: 'Tue', value: 55, orders: 30 },
-              { day: 'Wed', value: 35, orders: 50 },
-              { day: 'Thu', value: 60, orders: 45 },
-              { day: 'Fri', value: 70, orders: 55 },
-              { day: 'Sat', value: 95, orders: 75 },
-              { day: 'Sun', value: 50, orders: 40 },
-            ].map((bar, i) => (
-              <div key={i} className="flex-1 flex flex-col items-center gap-2">
-                <div className="w-full flex gap-1 items-end justify-center" style={{ height: '160px' }}>
-                  {/* Revenue bar */}
-                  <div
-                    className={`w-5 rounded-t-lg transition-all duration-500 ${
-                      bar.day === 'Sat' ? 'bg-feast-sunset' : 'bg-feast-sunset/20'
-                    }`}
-                    style={{ height: `${bar.value}%` }}
-                  />
-                  {/* Orders bar */}
-                  <div
-                    className="w-5 bg-feast-bg rounded-t-lg transition-all duration-500"
-                    style={{ height: `${bar.orders}%` }}
-                  />
-                </div>
-                <span className={`text-xs font-medium ${bar.day === 'Sat' ? 'text-feast-sunset' : 'text-feast-dark-muted'}`}>
-                  {bar.day}
+          {chartData.length > 0 ? (
+            <>
+              <div className="flex items-end gap-2 h-48 px-4">
+                {chartData.slice(-14).map((bar, i) => {
+                  const maxRevenue = Math.max(...chartData.slice(-14).map(d => parseFloat(d.revenue || 0)), 1);
+                  const maxOrders = Math.max(...chartData.slice(-14).map(d => d.order_count || 0), 1);
+                  const revPercent = (parseFloat(bar.revenue || 0) / maxRevenue) * 100;
+                  const orderPercent = ((bar.order_count || 0) / maxOrders) * 100;
+                  const dayLabel = new Date(bar.date).toLocaleDateString('id-ID', { weekday: 'short' });
+                  const isMax = parseFloat(bar.revenue || 0) === maxRevenue;
+
+                  return (
+                    <div key={i} className="flex-1 flex flex-col items-center gap-2">
+                      <div className="w-full flex gap-1 items-end justify-center" style={{ height: '160px' }}>
+                        <div
+                          className={`w-5 rounded-t-lg transition-all duration-500 ${isMax ? 'bg-feast-sunset' : 'bg-feast-sunset/20'}`}
+                          style={{ height: `${Math.max(revPercent, 4)}%` }}
+                          title={`Rp${parseFloat(bar.revenue || 0).toLocaleString('id-ID')}`}
+                        />
+                        <div
+                          className="w-5 bg-feast-bg rounded-t-lg transition-all duration-500"
+                          style={{ height: `${Math.max(orderPercent, 4)}%` }}
+                          title={`${bar.order_count} orders`}
+                        />
+                      </div>
+                      <span className={`text-xs font-medium ${isMax ? 'text-feast-sunset' : 'text-feast-dark-muted'}`}>
+                        {dayLabel}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="flex justify-between px-4 mt-2">
+                <span className="text-xs text-feast-dark-muted">Rp0</span>
+                <span className="text-xs text-feast-dark-muted">
+                  {formatCurrency(Math.max(...chartData.slice(-14).map(d => parseFloat(d.revenue || 0))))}
                 </span>
               </div>
-            ))}
-          </div>
-          {/* Y-axis labels */}
-          <div className="flex justify-between px-4 mt-2">
-            <span className="text-xs text-feast-dark-muted">$0</span>
-            <span className="text-xs text-feast-dark-muted">$1k</span>
-            <span className="text-xs text-feast-dark-muted">$2k</span>
-            <span className="text-xs text-feast-dark-muted">$3k</span>
-          </div>
+            </>
+          ) : (
+            <div className="flex items-center justify-center h-48 text-feast-dark-muted text-sm">
+              Belum ada data chart untuk periode ini.
+            </div>
+          )}
         </motion.div>
 
         {/* Bottom Row — Top Moving Items + Kitchen Load */}
@@ -161,40 +239,32 @@ const Dashboard = () => {
           <motion.div variants={itemVariants} className="bg-white rounded-2xl p-6">
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-lg font-bold font-jakarta text-feast-dark">Top Moving Items</h3>
-              <button className="text-feast-sunset text-xs font-semibold hover:underline">View All</button>
+              <span className="text-feast-sunset text-xs font-semibold">Popular</span>
             </div>
             <div className="space-y-4">
-              <TopItem
-                name="Classic Smashburger"
-                orders="124 orders today"
-                price="$1,860"
-                trending={true}
-                img={kineticKitchenImg}
-              />
-              <TopItem
-                name="Truffle Parm Fries"
-                orders="98 orders today"
-                price="$784"
-                trending={false}
-                img={chefPlatingImg}
-              />
-              <TopItem
-                name="Nashville Hot Chicken"
-                orders="85 orders today"
-                price="$1,105"
-                trending={false}
-                img={dynamicFoodImg}
-              />
+              {popularItems.length > 0 ? (
+                popularItems.map((item, i) => (
+                  <TopItem
+                    key={item.brand_product_id || i}
+                    name={item.name}
+                    orders={`${item.total_qty_sold} orders`}
+                    trending={i === 0}
+                    rank={i + 1}
+                  />
+                ))
+              ) : (
+                <p className="text-sm text-feast-dark-muted text-center py-4">Belum ada data produk populer.</p>
+              )}
             </div>
           </motion.div>
 
-          {/* Kitchen Load */}
+          {/* Kitchen Load (kept as visual indicator) */}
           <motion.div variants={itemVariants} className="bg-white rounded-2xl p-6">
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-lg font-bold font-jakarta text-feast-dark">Kitchen Load</h3>
               <span className="flex items-center gap-1.5 text-xs font-semibold text-feast-sunset">
                 <span className="w-2 h-2 bg-feast-sunset rounded-full animate-pulse" />
-                High Capacity
+                Live
               </span>
             </div>
             <div className="space-y-5">
@@ -242,19 +312,20 @@ const StatCard = ({ title, value, change, isUp, subtitle, iconColor }) => (
   </div>
 );
 
-const TopItem = ({ name, orders, price, trending, img }) => (
+const TopItem = ({ name, orders, trending, rank }) => (
   <div className="flex items-center gap-4">
-    <img src={img} alt={name} className="w-12 h-12 rounded-xl object-cover" />
+    <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm ${
+      rank === 1 ? 'bg-feast-sunset/10 text-feast-sunset' : 'bg-feast-bg text-feast-dark-muted'
+    }`}>
+      #{rank}
+    </div>
     <div className="flex-1">
       <h4 className="text-sm font-semibold text-feast-dark">{name}</h4>
       <p className="text-xs text-feast-dark-muted">{orders}</p>
     </div>
-    <div className="text-right">
-      <p className="text-sm font-bold text-feast-dark">{price}</p>
-      {trending && (
-        <span className="text-[10px] font-semibold text-feast-sunset">Trending</span>
-      )}
-    </div>
+    {trending && (
+      <span className="text-[10px] font-semibold text-feast-sunset bg-feast-sunset/10 px-2 py-1 rounded-full">Trending</span>
+    )}
   </div>
 );
 
