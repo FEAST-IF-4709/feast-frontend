@@ -25,3 +25,7 @@ dist-ssr
 *.sw?
 
 venv
+.venv
+
+docs/
+CLAUDE.md

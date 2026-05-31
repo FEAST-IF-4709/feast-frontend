@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Filter, Plus, Loader2, RefreshCw } from 'lucide-react';
+import { Plus, Loader2, RefreshCw, QrCode } from 'lucide-react';
 import { motion } from 'framer-motion';
 import api from '../api/client';
 import { getOutletId } from '../api/auth';
+import { TableQRModal } from '../components/TableQRModal';
 
 const TablePage = () => {
   const [tables, setTables] = useState([]);
@@ -11,6 +12,7 @@ const TablePage = () => {
   const [showAddForm, setShowAddForm] = useState(false);
   const [newLabel, setNewLabel] = useState('');
   const [newCapacity, setNewCapacity] = useState(4);
+  const [qrModalTable, setQrModalTable] = useState(null);
 
   const fetchTables = async () => {
     try {
@@ -173,6 +175,13 @@ const TablePage = () => {
                       </td>
                       <td className="py-4 px-4 text-right space-x-2">
                         <button
+                          onClick={() => setQrModalTable(table)}
+                          className="text-feast-sunset hover:text-feast-sunset-dark inline-flex items-center align-middle mr-1"
+                          title="Lihat QR"
+                        >
+                          <QrCode className="w-4 h-4" />
+                        </button>
+                        <button
                           onClick={() => handleRotateQR(table.id)}
                           disabled={actionId === table.id}
                           className="text-[10px] font-bold text-[#fb7c4a] border border-[#fb7c4a] px-3 py-1 rounded hover:bg-[#fff5f0] transition-colors disabled:opacity-50"
@@ -202,6 +211,12 @@ const TablePage = () => {
           </div>
         )}
       </motion.div>
+
+      <TableQRModal
+        table={qrModalTable}
+        isOpen={!!qrModalTable}
+        onClose={() => setQrModalTable(null)}
+      />
     </>
   );
 };

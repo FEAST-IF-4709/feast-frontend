@@ -18,6 +18,11 @@ import RestaurantProfilePage from './pages/RestaurantProfilePage';
 import KitchenPage from './pages/KitchenPage';
 import MarketingPage from './pages/MarketingPage';
 import TablePage from './pages/TablePage';
+import OutletsPage from './pages/OutletsPage';
+import StaffPage from './pages/StaffPage';
+import MenuPage from './pages/MenuPage';
+import OrdersPage from './pages/OrdersPage';
+import NotFoundPage from './pages/NotFoundPage';
 
 const App = () => {
   return (
@@ -41,7 +46,42 @@ const App = () => {
           <Route path="/kitchen" element={<KitchenPage />} />
           <Route path="/marketing" element={<MarketingPage />} />
           <Route path="/table" element={<TablePage />} />
+          <Route
+            path="/outlets"
+            element={
+              <ProtectedRoute permission="outlet.view">
+                <OutletsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/staff"
+            element={
+              <ProtectedRoute permission="staff.view">
+                <StaffPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/menu"
+            element={
+              <ProtectedRoute permission="products.view">
+                <MenuPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/orders"
+            element={
+              <ProtectedRoute permission="orders.view">
+                <OrdersPage />
+              </ProtectedRoute>
+            }
+          />
         </Route>
+
+        {/* 404 catch-all */}
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </Router>
   );
