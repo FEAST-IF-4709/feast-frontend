@@ -61,7 +61,7 @@ export default function PromotionsTab() {
   const getProductName = (productId) =>
     products.find((p) => String(p.id) === String(productId))?.name ?? `#${productId}`;
   const getProductImage = (productId) =>
-    products.find((p) => String(p.id) === String(productId))?.image ?? null;
+    products.find((p) => String(p.id) === String(productId))?.image_url ?? null;
 
   const filteredPromotions = useMemo(() => {
     const all = promotionsData?.results ?? promotionsData ?? [];
@@ -134,7 +134,7 @@ export default function PromotionsTab() {
         >
           {filteredPromotions.map((promo) => {
             const status = getPromotionStatus(promo);
-            const productImage = getProductImage(promo.brand_product);
+            const productImage = getProductImage(promo.brand_product_id);
 
             return (
               <motion.div
@@ -146,7 +146,7 @@ export default function PromotionsTab() {
                 <div className="relative h-28 bg-gradient-to-br from-feast-amber/20 to-feast-sunset/20 flex items-center justify-between px-5">
                   <div>
                     <p className="text-3xl font-bold font-jakarta text-feast-sunset">{formatDiscount(promo)}</p>
-                    <p className="text-xs text-feast-dark-muted font-vietnam mt-0.5">{getProductName(promo.brand_product)}</p>
+                    <p className="text-xs text-feast-dark-muted font-vietnam mt-0.5">{getProductName(promo.brand_product_id)}</p>
                   </div>
                   {productImage && (
                     <img src={productImage} alt="" className="w-16 h-16 rounded-xl object-cover shadow-md" />

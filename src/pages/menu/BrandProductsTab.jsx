@@ -47,13 +47,13 @@ export default function BrandProductsTab() {
     const all = productsData?.results ?? productsData ?? [];
     return all.filter((p) => {
       if (filterActiveOnly && !p.is_active) return false;
-      if (filterCategory && String(p.category) !== String(filterCategory)) return false;
+      if (filterCategory && String(p.category_id) !== String(filterCategory)) return false;
       if (filterSearch && !p.name.toLowerCase().includes(filterSearch.toLowerCase())) return false;
       return true;
     });
   }, [productsData, filterCategory, filterSearch, filterActiveOnly]);
 
-  const getCategoryName = (catId) => categories.find((c) => String(c.id) === String(catId))?.name ?? '-';
+  const getCategoryName = (catId) => categories.find((c) => String(c.id) === String(catId ?? ''))?.name ?? '-';
 
   const openCreate = () => { setEditingItem(null); setModalOpen(true); };
   const openEdit = (item) => { setEditingItem(item); setModalOpen(true); };
@@ -146,8 +146,8 @@ export default function BrandProductsTab() {
             >
               {/* Image */}
               <div className="relative h-40 bg-feast-bg">
-                {product.image ? (
-                  <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                {product.image_url ? (
+                  <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
                     <UtensilsCrossed size={32} className="text-feast-dark-muted/30" />
@@ -183,7 +183,7 @@ export default function BrandProductsTab() {
                     label={product.is_active ? 'Aktif' : 'Nonaktif'}
                   />
                 </div>
-                <p className="text-xs text-feast-dark-muted font-vietnam mb-3">{getCategoryName(product.category)}</p>
+                <p className="text-xs text-feast-dark-muted font-vietnam mb-3">{getCategoryName(product.category_id)}</p>
                 <p className="text-base font-bold text-feast-sunset font-jakarta">{formatIDR(product.base_price)}</p>
               </div>
             </motion.div>

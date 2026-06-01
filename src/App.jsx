@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 
 // Landing Pages
@@ -7,22 +7,25 @@ import BrandPage from './pages/BrandPage';
 import ContactPage from './pages/ContactPage';
 import CareerPage from './pages/CareerPage';
 
-// Admin
+// Admin — eagerly loaded (critical path)
 import Login from './Login';
 import AdminLayout from './components/AdminLayout';
 import ProtectedRoute from './components/ProtectedRoute';
 import Dashboard from './Dashboard';
-import RolesPage from './pages/RolesPage';
-import OrderPage from './pages/OrderPage';
-import RestaurantProfilePage from './pages/RestaurantProfilePage';
-import KitchenPage from './pages/KitchenPage';
-import MarketingPage from './pages/MarketingPage';
-import TablePage from './pages/TablePage';
-import OutletsPage from './pages/OutletsPage';
-import StaffPage from './pages/StaffPage';
-import MenuPage from './pages/MenuPage';
-import OrdersPage from './pages/OrdersPage';
+import LoadingSpinner from './components/LoadingSpinner';
 import NotFoundPage from './pages/NotFoundPage';
+
+// Admin — lazily loaded (non-critical)
+const RolesPage = lazy(() => import('./pages/RolesPage'));
+const OrderPage = lazy(() => import('./pages/OrderPage'));
+const RestaurantProfilePage = lazy(() => import('./pages/RestaurantProfilePage'));
+const KitchenPage = lazy(() => import('./pages/KitchenPage'));
+const MarketingPage = lazy(() => import('./pages/MarketingPage'));
+const TablePage = lazy(() => import('./pages/TablePage'));
+const OutletsPage = lazy(() => import('./pages/OutletsPage'));
+const StaffPage = lazy(() => import('./pages/StaffPage'));
+const MenuPage = lazy(() => import('./pages/MenuPage'));
+const OrdersPage = lazy(() => import('./pages/OrdersPage'));
 
 const App = () => {
   return (
@@ -40,17 +43,29 @@ const App = () => {
         {/* Admin Pages (protected + wrapped with Sidebar) */}
         <Route element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
           <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/roles" element={<RolesPage />} />
-          <Route path="/order" element={<OrderPage />} />
-          <Route path="/restaurant-profile" element={<RestaurantProfilePage />} />
-          <Route path="/kitchen" element={<KitchenPage />} />
-          <Route path="/marketing" element={<MarketingPage />} />
-          <Route path="/table" element={<TablePage />} />
+          <Route path="/roles" element={
+            <Suspense fallback={<LoadingSpinner fullPage />}><RolesPage /></Suspense>
+          } />
+          <Route path="/order" element={
+            <Suspense fallback={<LoadingSpinner fullPage />}><OrderPage /></Suspense>
+          } />
+          <Route path="/restaurant-profile" element={
+            <Suspense fallback={<LoadingSpinner fullPage />}><RestaurantProfilePage /></Suspense>
+          } />
+          <Route path="/kitchen" element={
+            <Suspense fallback={<LoadingSpinner fullPage />}><KitchenPage /></Suspense>
+          } />
+          <Route path="/marketing" element={
+            <Suspense fallback={<LoadingSpinner fullPage />}><MarketingPage /></Suspense>
+          } />
+          <Route path="/table" element={
+            <Suspense fallback={<LoadingSpinner fullPage />}><TablePage /></Suspense>
+          } />
           <Route
             path="/outlets"
             element={
               <ProtectedRoute permission="outlet.view">
-                <OutletsPage />
+                <Suspense fallback={<LoadingSpinner fullPage />}><OutletsPage /></Suspense>
               </ProtectedRoute>
             }
           />
@@ -58,7 +73,7 @@ const App = () => {
             path="/staff"
             element={
               <ProtectedRoute permission="staff.view">
-                <StaffPage />
+                <Suspense fallback={<LoadingSpinner fullPage />}><StaffPage /></Suspense>
               </ProtectedRoute>
             }
           />
@@ -66,7 +81,7 @@ const App = () => {
             path="/menu"
             element={
               <ProtectedRoute permission="products.view">
-                <MenuPage />
+                <Suspense fallback={<LoadingSpinner fullPage />}><MenuPage /></Suspense>
               </ProtectedRoute>
             }
           />
@@ -74,7 +89,7 @@ const App = () => {
             path="/orders"
             element={
               <ProtectedRoute permission="orders.view">
-                <OrdersPage />
+                <Suspense fallback={<LoadingSpinner fullPage />}><OrdersPage /></Suspense>
               </ProtectedRoute>
             }
           />

@@ -1,14 +1,17 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Pencil, Plus, UtensilsCrossed, Store } from 'lucide-react';
+import { Pencil, Plus, Trash2, UtensilsCrossed, Store, Loader2 } from 'lucide-react';
 import { useApi } from '../../hooks/useApi';
 import { usePermission } from '../../hooks/usePermission';
+import { useToast } from '../../hooks/useToast';
 import { categoriesApi, brandProductsApi, outletProductsApi } from '../../api/catalog';
 import { outletsApi } from '../../api/outlets';
+import { handleApiError } from '../../api/errorHandler';
 import { formatIDR } from '../../utils/format';
 import EmptyState from '../../components/EmptyState';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import StatusBadge from '../../components/StatusBadge';
+import ConfirmDialog from '../../components/ConfirmDialog';
 import OutletProductModal from './components/OutletProductModal';
 
 const containerVariants = {
@@ -21,18 +24,25 @@ const itemVariants = {
 };
 
 export default function OutletProductsTab() {
+  const toast = useToast();
   const canUpdate = usePermission('products.update');
   const canCreate = usePermission('products.create');
+  const canDelete = usePermission('outlet_products.delete');
 
   const [selectedOutletId, setSelectedOutletId] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedBrandProduct, setSelectedBrandProduct] = useState(null);
   const [selectedOutletProduct, setSelectedOutletProduct] = useState(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+
+  // Track whether we've done the initial load for the current outlet,
+  // so we can show a full spinner only on first selection (not on refetch).
+  const initialLoadedOutletRef = useRef('');
 
   const { data: outletsData } = useApi(() => outletsApi.list(), []);
   const { data: categoriesData } = useApi(() => categoriesApi.list(), []);
   const { data: brandProductsData, isLoading: loadingBp } = useApi(
-    () => brandProductsApi.list({ page_size: 200 }),
+    () => brandProductsApi.list(),
     []
   );
   const { data: outletProductsData, isLoading: loadingOp, refetch } = useApi(
@@ -43,17 +53,22 @@ export default function OutletProductsTab() {
     [selectedOutletId]
   );
 
+  // Mark the outlet as initially loaded once data arrives
+  if (selectedOutletId && !loadingOp) {
+    initialLoadedOutletRef.current = selectedOutletId;
+  }
+
   const outlets = outletsData?.results ?? outletsData ?? [];
   const categories = categoriesData?.results ?? categoriesData ?? [];
 
   const mergedList = useMemo(() => {
-    const bps = brandProductsData?.results ?? brandProductsData ?? [];
-    const ops = outletProductsData?.results ?? outletProductsData ?? [];
+    const bps = Array.isArray(brandProductsData) ? brandProductsData
+      : brandProductsData?.results ?? [];
+    const ops = Array.isArray(outletProductsData) ? outletProductsData
+      : outletProductsData?.results ?? [];
     return bps.map((bp) => ({
       ...bp,
-      outletProduct: Array.isArray(ops)
-        ? ops.find((op) => String(op.brand_product) === String(bp.id)) ?? null
-        : null,
+      outletProduct: ops.find((op) => String(op.brand_product_id) === String(bp.id)) ?? null,
     }));
   }, [brandProductsData, outletProductsData]);
 
@@ -71,7 +86,24 @@ export default function OutletProductsTab() {
     setSelectedOutletProduct(null);
   };
 
-  const isLoading = loadingBp || (selectedOutletId && loadingOp);
+  const handleDelete = async () => {
+    try {
+      await outletProductsApi.delete(confirmDeleteId);
+      toast.success('Menu dihapus dari outlet');
+      refetch();
+    } catch (err) {
+      handleApiError(err, { showError: toast.error });
+    } finally {
+      setConfirmDeleteId(null);
+    }
+  };
+
+  // Show full spinner only for initial brand-product load or first outlet selection.
+  // During refetch (outlet already loaded once), keep the table visible.
+  const isInitialOutletLoad = selectedOutletId && loadingOp
+    && initialLoadedOutletRef.current !== selectedOutletId;
+  const isLoading = loadingBp || isInitialOutletLoad;
+  const isRefreshing = selectedOutletId && loadingOp && !isInitialOutletLoad;
 
   return (
     <div className="pb-10">
@@ -89,9 +121,9 @@ export default function OutletProductsTab() {
           ))}
         </select>
         {selectedOutletId && (
-          <span className="text-xs text-feast-dark-muted font-vietnam">
-            {mergedList.length} menu brand
-          </span>
+          isRefreshing
+            ? <Loader2 size={16} className="animate-spin text-feast-sunset" />
+            : <span className="text-xs text-feast-dark-muted font-vietnam">{mergedList.length} menu brand</span>
         )}
       </div>
 
@@ -139,8 +171,8 @@ export default function OutletProductsTab() {
                         {/* Menu */}
                         <td className="px-5 py-3.5">
                           <div className="flex items-center gap-3">
-                            {item.image ? (
-                              <img src={item.image} alt={item.name} className="w-9 h-9 rounded-lg object-cover flex-shrink-0" />
+                            {item.image_url ? (
+                              <img src={item.image_url} alt={item.name} className="w-9 h-9 rounded-lg object-cover flex-shrink-0" />
                             ) : (
                               <div className="w-9 h-9 rounded-lg bg-feast-bg flex items-center justify-center flex-shrink-0">
                                 <UtensilsCrossed size={14} className="text-feast-dark-muted/50" />
@@ -157,7 +189,7 @@ export default function OutletProductsTab() {
 
                         {/* Kategori */}
                         <td className="px-5 py-3.5 text-sm text-feast-dark-secondary font-vietnam">
-                          {getCategoryName(item.category)}
+                          {getCategoryName(item.category_id)}
                         </td>
 
                         {/* Harga brand */}
@@ -198,15 +230,26 @@ export default function OutletProductsTab() {
                         {/* Aksi */}
                         <td className="px-5 py-3.5 text-right">
                           {op ? (
-                            canUpdate && (
-                              <button
-                                onClick={() => openModal(item, op)}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold font-vietnam text-feast-sunset border border-feast-sunset/30 rounded-lg hover:bg-feast-sunset/5 transition-colors"
-                              >
-                                <Pencil size={12} />
-                                Edit
-                              </button>
-                            )
+                            <div className="inline-flex items-center gap-1.5">
+                              {canUpdate && (
+                                <button
+                                  onClick={() => openModal(item, op)}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold font-vietnam text-feast-sunset border border-feast-sunset/30 rounded-lg hover:bg-feast-sunset/5 transition-colors"
+                                >
+                                  <Pencil size={12} />
+                                  Edit
+                                </button>
+                              )}
+                              {canDelete && (
+                                <button
+                                  onClick={() => setConfirmDeleteId(op.id)}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold font-vietnam text-red-500 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+                                >
+                                  <Trash2 size={12} />
+                                  Hapus
+                                </button>
+                              )}
+                            </div>
                           ) : (
                             canCreate && (
                               <button
@@ -236,6 +279,14 @@ export default function OutletProductsTab() {
         outletProduct={selectedOutletProduct}
         outletId={selectedOutletId}
         onSuccess={refetch}
+      />
+
+      <ConfirmDialog
+        isOpen={!!confirmDeleteId}
+        title="Hapus dari Outlet"
+        message="Menu ini akan dihapus dari outlet. Data harga dan stok outlet akan hilang, tapi menu brand tetap ada."
+        onConfirm={handleDelete}
+        onCancel={() => setConfirmDeleteId(null)}
       />
     </div>
   );

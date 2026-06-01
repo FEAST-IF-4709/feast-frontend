@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Search, Bell, Settings, TrendingUp, TrendingDown, MoreHorizontal, AlertTriangle, Loader2 } from 'lucide-react';
-import api from './api/client';
 import { getBrandId, getOutletId, getAccessToken } from './api/auth';
 import { connectDashboard } from './api/websocket';
+import { analyticsApi } from './api/analytics';
+import { recommendationsApi } from './api/recommendations';
+import { formatIDR } from './utils/format';
 
 const Dashboard = () => {
   const [timePeriod, setTimePeriod] = useState('This Week');
@@ -37,10 +39,13 @@ const Dashboard = () => {
       const { from, to } = getDateRange(timePeriod);
       const brandId = getBrandId();
 
+      const days = timePeriod === 'Today' ? 1 : timePeriod === 'This Week' ? 7 : 30;
       const [summaryRes, chartRes, popularRes] = await Promise.allSettled([
-        api.get(`/analytics/dashboard/summary/?date_from=${from}&date_to=${to}`),
-        api.get(`/analytics/dashboard/daily-chart/?days=${timePeriod === 'Today' ? 1 : timePeriod === 'This Week' ? 7 : 30}`),
-        brandId ? api.get(`/recommendations/brands/${brandId}/popular/?limit=5`) : Promise.resolve({ data: { data: [] } }),
+        analyticsApi.getDashboardSummary({ date_from: from, date_to: to }),
+        analyticsApi.getDashboardDailyChart({ days }),
+        brandId
+          ? recommendationsApi.getPopular(brandId, { limit: 5 })
+          : Promise.resolve({ data: { data: [] } }),
       ]);
 
       if (summaryRes.status === 'fulfilled') setSummaryData(summaryRes.value.data.data);
@@ -77,7 +82,7 @@ const Dashboard = () => {
     const num = parseFloat(value || 0);
     if (num >= 1000000) return `Rp${(num / 1000000).toFixed(1)}jt`;
     if (num >= 1000) return `Rp${(num / 1000).toFixed(0)}rb`;
-    return `Rp${num.toLocaleString('id-ID')}`;
+    return formatIDR(num);
   };
 
   const containerVariants = {
@@ -204,7 +209,7 @@ const Dashboard = () => {
                         <div
                           className={`w-5 rounded-t-lg transition-all duration-500 ${isMax ? 'bg-feast-sunset' : 'bg-feast-sunset/20'}`}
                           style={{ height: `${Math.max(revPercent, 4)}%` }}
-                          title={`Rp${parseFloat(bar.revenue || 0).toLocaleString('id-ID')}`}
+                          title={formatIDR(bar.revenue || 0)}
                         />
                         <div
                           className="w-5 bg-feast-bg rounded-t-lg transition-all duration-500"

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Loader2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Loader2, Upload } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { brandsApi } from '../api/brands';
 import { handleApiError } from '../api/errorHandler';
@@ -18,6 +18,15 @@ const DAYS = [
   { key: 'sun', label: 'Minggu' },
 ];
 
+const DEFAULT_HOURS = { open: '08:00', close: '22:00' };
+
+function normalizeOperatingHours(hours) {
+  return DAYS.reduce((acc, { key }) => ({
+    ...acc,
+    [key]: { ...DEFAULT_HOURS, ...(hours?.[key] ?? {}) },
+  }), {});
+}
+
 const RestaurantProfilePage = () => {
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -33,6 +42,9 @@ const RestaurantProfilePage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [logoFile, setLogoFile] = useState(null);
+  const [logoPreview, setLogoPreview] = useState(null);
+  const logoInputRef = useRef(null);
   const toast = useToast();
   const canUpdate = usePermission('brand.update');
 
@@ -41,8 +53,9 @@ const RestaurantProfilePage = () => {
       try {
         const res = await brandsApi.getMe();
         const data = res.data?.data ?? res.data;
-        setBrandData(data);
-        setOriginalData(data);
+        const normalized = { ...data, operating_hours: normalizeOperatingHours(data.operating_hours) };
+        setBrandData(normalized);
+        setOriginalData(normalized);
       } catch (err) {
         handleApiError(err, { showError: toast.error });
       } finally {
@@ -57,17 +70,55 @@ const RestaurantProfilePage = () => {
     setHasChanges(true);
   };
 
+  const handleLogoChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLogoFile(file);
+    setLogoPreview(URL.createObjectURL(file));
+    setHasChanges(true);
+  };
+
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const res = await brandsApi.updateMe(brandData);
+      let res;
+      if (logoFile) {
+        const formData = new FormData();
+        formData.append('name', brandData.name ?? '');
+        formData.append('description', brandData.description ?? '');
+        formData.append('cuisine_type', brandData.cuisine_type ?? '');
+        formData.append('phone', brandData.phone ?? '');
+        formData.append('location_address', brandData.location_address ?? '');
+        formData.append('operating_hours', JSON.stringify(brandData.operating_hours ?? {}));
+        formData.append('logo', logoFile);
+        res = await brandsApi.updateMeWithImage(formData);
+      } else {
+        const payload = {
+          name: brandData.name,
+          description: brandData.description,
+          cuisine_type: brandData.cuisine_type,
+          phone: brandData.phone,
+          logo_url: brandData.logo_url,
+          location_address: brandData.location_address,
+          operating_hours: brandData.operating_hours,
+        };
+        res = await brandsApi.updateMe(payload);
+      }
       const updated = res.data?.data ?? res.data;
-      setBrandData(updated);
-      setOriginalData(updated);
+      const normalized = { ...updated, operating_hours: normalizeOperatingHours(updated.operating_hours) };
+      setBrandData(normalized);
+      setOriginalData(normalized);
       setHasChanges(false);
+      setLogoFile(null);
+      setLogoPreview(null);
       toast.success('Profil restoran berhasil diperbarui');
     } catch (err) {
-      handleApiError(err, { showError: toast.error });
+      const fieldErrors = err.response?.data?.errors;
+      if (fieldErrors?.length) {
+        fieldErrors.forEach(({ field, detail }) => toast.error(`${field}: ${detail}`));
+      } else {
+        handleApiError(err, { showError: toast.error });
+      }
     } finally {
       setIsSaving(false);
     }
@@ -184,27 +235,58 @@ const RestaurantProfilePage = () => {
           {/* Brand Imagery */}
           <motion.section variants={itemVariants} className="bg-white rounded-3xl p-8 shadow-sm">
             <h3 className="text-lg font-bold font-jakarta text-feast-dark mb-6">Brand Imagery</h3>
-            <div className="h-48 bg-feast-surface-low rounded-2xl overflow-hidden w-full relative group cursor-pointer mb-4">
+            <div
+              className="h-48 bg-feast-surface-low rounded-2xl overflow-hidden w-full relative group cursor-pointer mb-4"
+              onClick={() => canUpdate && logoInputRef.current?.click()}
+            >
               <img
-                src={brandData?.logo_url || brandHeroImg}
+                src={logoPreview || brandData?.logo_url || brandHeroImg}
                 alt="Brand"
                 onError={(e) => { e.target.src = brandHeroImg; }}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
               />
+              {canUpdate && (
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <div className="flex items-center gap-2 bg-white/90 rounded-xl px-4 py-2">
+                    <Upload size={14} className="text-feast-dark" />
+                    <span className="text-xs font-semibold font-vietnam text-feast-dark">Upload Gambar</span>
+                  </div>
+                </div>
+              )}
             </div>
-            <div>
-              <label className="block text-[10px] font-semibold uppercase tracking-[0.15em] text-feast-dark-muted mb-2">
-                Logo URL
-              </label>
-              <input
-                type="url"
-                value={brandData?.logo_url || ''}
-                onChange={(e) => updateField('logo_url', e.target.value)}
-                disabled={!canUpdate}
-                placeholder="https://..."
-                className="w-full bg-feast-surface-low rounded-xl px-4 py-3 text-sm text-feast-dark font-vietnam focus:outline-none focus:ring-2 focus:ring-feast-sunset/30 disabled:opacity-60 disabled:cursor-not-allowed"
-              />
-            </div>
+            <input
+              ref={logoInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleLogoChange}
+            />
+            {logoFile ? (
+              <div className="flex items-center gap-2 px-3 py-2 bg-feast-sunset/5 rounded-xl">
+                <span className="text-xs font-vietnam text-feast-sunset flex-1 truncate">{logoFile.name}</span>
+                <button
+                  type="button"
+                  onClick={() => { setLogoFile(null); setLogoPreview(null); }}
+                  className="text-xs text-feast-dark-muted hover:text-red-500 font-vietnam"
+                >
+                  Batal
+                </button>
+              </div>
+            ) : (
+              <div>
+                <label className="block text-[10px] font-semibold uppercase tracking-[0.15em] text-feast-dark-muted mb-2">
+                  Logo URL
+                </label>
+                <input
+                  type="url"
+                  value={brandData?.logo_url || ''}
+                  onChange={(e) => updateField('logo_url', e.target.value)}
+                  disabled={!canUpdate}
+                  placeholder="https://..."
+                  className="w-full bg-feast-surface-low rounded-xl px-4 py-3 text-sm text-feast-dark font-vietnam focus:outline-none focus:ring-2 focus:ring-feast-sunset/30 disabled:opacity-60 disabled:cursor-not-allowed"
+                />
+              </div>
+            )}
           </motion.section>
 
           {/* Operating Hours */}
@@ -216,28 +298,36 @@ const RestaurantProfilePage = () => {
                   <span className="w-20 font-vietnam text-sm text-feast-dark">{day.label}</span>
                   <input
                     type="time"
-                    value={brandData?.operating_hours?.[day.key]?.open || '08:00'}
-                    onChange={(e) => updateField('operating_hours', {
-                      ...brandData?.operating_hours,
-                      [day.key]: {
-                        ...brandData?.operating_hours?.[day.key],
-                        open: e.target.value,
-                      },
-                    })}
+                    value={brandData?.operating_hours?.[day.key]?.open ?? ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setBrandData(prev => ({
+                        ...prev,
+                        operating_hours: {
+                          ...prev.operating_hours,
+                          [day.key]: { ...prev.operating_hours?.[day.key], open: val },
+                        },
+                      }));
+                      setHasChanges(true);
+                    }}
                     disabled={!canUpdate}
                     className="bg-feast-surface-low rounded-xl px-3 py-2 font-vietnam text-sm text-feast-dark focus:outline-none focus:ring-2 focus:ring-feast-sunset/30 disabled:opacity-60 disabled:cursor-not-allowed"
                   />
                   <span className="font-vietnam text-feast-dark-secondary">—</span>
                   <input
                     type="time"
-                    value={brandData?.operating_hours?.[day.key]?.close || '22:00'}
-                    onChange={(e) => updateField('operating_hours', {
-                      ...brandData?.operating_hours,
-                      [day.key]: {
-                        ...brandData?.operating_hours?.[day.key],
-                        close: e.target.value,
-                      },
-                    })}
+                    value={brandData?.operating_hours?.[day.key]?.close ?? ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setBrandData(prev => ({
+                        ...prev,
+                        operating_hours: {
+                          ...prev.operating_hours,
+                          [day.key]: { ...prev.operating_hours?.[day.key], close: val },
+                        },
+                      }));
+                      setHasChanges(true);
+                    }}
                     disabled={!canUpdate}
                     className="bg-feast-surface-low rounded-xl px-3 py-2 font-vietnam text-sm text-feast-dark focus:outline-none focus:ring-2 focus:ring-feast-sunset/30 disabled:opacity-60 disabled:cursor-not-allowed"
                   />

@@ -1,65 +1,118 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Loader2 } from 'lucide-react';
+import { Search, Loader2, Banknote, QrCode, Store, ChevronDown, Plus, Minus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../api/client';
+import { ordersApi } from '../api/orders';
+import { paymentsApi } from '../api/payments';
+import { outletsApi } from '../api/outlets';
 import { getOutletId } from '../api/auth';
+import { handleApiError } from '../api/errorHandler';
+import { useToast } from '../hooks/useToast';
+import QRPaymentModal from '../components/QRPaymentModal';
+import { formatIDR, formatDateTime } from '../utils/format';
+
+const PAYMENT_METHODS = [
+  { key: 'CASH', label: 'Tunai', icon: Banknote },
+  { key: 'QRIS_MIDTRANS', label: 'QRIS', icon: QrCode },
+];
 
 const OrderPage = () => {
+  // Determine if current user is an owner (no fixed outlet) or cashier (fixed outlet)
+  const fixedOutletId = getOutletId();
+  const isOwner = !fixedOutletId;
+
+  const [outlets, setOutlets] = useState([]);
+  const [selectedOutletId, setSelectedOutletId] = useState(fixedOutletId || '');
+  const [isLoadingOutlets, setIsLoadingOutlets] = useState(isOwner);
+
   const [menuItems, setMenuItems] = useState([]);
   const [categories, setCategories] = useState([]);
   const [activeCategory, setActiveCategory] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [cart, setCart] = useState([]);
   const [showReceipt, setShowReceipt] = useState(false);
-  const [isLoadingMenu, setIsLoadingMenu] = useState(true);
+  const [isLoadingMenu, setIsLoadingMenu] = useState(!isOwner);
   const [isSending, setIsSending] = useState(false);
   const [receiptData, setReceiptData] = useState(null);
+  const [paymentMethod, setPaymentMethod] = useState('CASH');
+  const [qrisModalData, setQrisModalData] = useState(null);
+  const toast = useToast();
 
-  // Fetch menu from API
+  // Fetch outlet list for owners
   useEffect(() => {
-    const fetchMenu = async () => {
+    if (!isOwner) return;
+    const loadOutlets = async () => {
       try {
-        const outletId = getOutletId();
-        const res = await api.get(`/public/outlets/${outletId}/menu/`);
-        const menuData = res.data.data?.menu || [];
+        const res = await outletsApi.list();
+        const data = res.data?.data ?? res.data ?? [];
+        const list = Array.isArray(data) ? data : [];
+        setOutlets(list);
+        if (list.length === 1) {
+          setSelectedOutletId(list[0].id);
+        }
+      } catch (err) {
+        toast.error('Gagal memuat daftar outlet');
+      } finally {
+        setIsLoadingOutlets(false);
+      }
+    };
+    loadOutlets();
+  }, [isOwner]);
 
-        // Extract categories
-        const cats = menuData.map((cat) => ({
-          id: cat.category_id,
-          name: cat.category_name,
-        }));
-        setCategories(cats);
+  // Fetch menu when outletId is known
+  useEffect(() => {
+    if (!selectedOutletId) return;
 
-        // Flatten all items with category info
-        const allItems = menuData.flatMap((cat) =>
-          (cat.items || []).map((item) => ({
+    const fetchMenu = async () => {
+      setIsLoadingMenu(true);
+      setMenuItems([]);
+      setCategories([]);
+      setActiveCategory('ALL');
+      setCart([]);
+      try {
+        const res = await api.get(`/public/outlets/${selectedOutletId}/menu/`);
+        const groupedMenu = res.data?.data?.menu ?? [];
+
+        setCategories(groupedMenu.map((cat) => ({ id: cat.category_id, name: cat.category_name })));
+
+        const allItems = groupedMenu.flatMap((cat) =>
+          cat.items.map((item) => ({
             id: item.id,
             title: item.name,
             description: item.description,
             price: parseFloat(item.price),
             image_url: item.image_url,
-            category_id: cat.category_id,
-            category_name: cat.category_name,
+            category_id: item.category_id,
+            category_name: item.category_name,
             stock_available: item.stock_available,
             promotion: item.active_promotion,
           }))
         );
         setMenuItems(allItems);
       } catch (err) {
-        console.error('Failed to fetch menu:', err);
+        toast.error('Gagal memuat menu');
       } finally {
         setIsLoadingMenu(false);
       }
     };
-    fetchMenu();
-  }, []);
 
-  // Filter menu items
+    fetchMenu();
+  }, [selectedOutletId]);
+
   const filteredItems = menuItems.filter((item) => {
     const matchesCategory = activeCategory === 'ALL' || item.category_id === activeCategory;
     const matchesSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
   });
+
+  const getEffectivePrice = (item) => {
+    if (!item.promotion) return item.price;
+    const val = parseFloat(item.promotion.discount_value);
+    if (item.promotion.discount_type === 'percent') {
+      return item.price * (1 - val / 100);
+    }
+    return Math.max(0, item.price - val);
+  };
 
   const handleAddToCart = (item) => {
     if (!item.stock_available) return;
@@ -70,26 +123,37 @@ const OrderPage = () => {
           cartItem.id === item.id ? { ...cartItem, quantity: cartItem.quantity + 1 } : cartItem
         );
       }
-      return [...prev, { ...item, quantity: 1 }];
+      const effectivePrice = getEffectivePrice(item);
+      return [...prev, { ...item, effectivePrice, quantity: 1 }];
     });
   };
 
-  const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const tax = subtotal * 0.1; // 10% PPN
+  const handleDecreaseCart = (itemId) => {
+    setCart((prev) => {
+      const existing = prev.find((cartItem) => cartItem.id === itemId);
+      if (!existing) return prev;
+      if (existing.quantity === 1) return prev.filter((cartItem) => cartItem.id !== itemId);
+      return prev.map((cartItem) =>
+        cartItem.id === itemId ? { ...cartItem, quantity: cartItem.quantity - 1 } : cartItem
+      );
+    });
+  };
+
+  const originalSubtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const subtotal = cart.reduce((sum, item) => sum + (item.effectivePrice ?? item.price) * item.quantity, 0);
+  const discountTotal = originalSubtotal - subtotal;
+  const tax = subtotal * 0.1;
   const grandTotal = subtotal + tax;
 
-  // Send to Kitchen — creates order via API
   const handleSendToKitchen = async () => {
-    if (cart.length === 0 || isSending) return;
+    if (cart.length === 0 || isSending || !selectedOutletId) return;
     setIsSending(true);
 
     try {
-      const outletId = getOutletId();
-
-      // 1. Create order via cashier POS
-      const orderRes = await api.post('/orders/cashier-pos/', {
-        outlet_id: outletId,
-        payment_method: 'CASH',
+      // Step 1: Create order
+      const orderRes = await ordersApi.createCashierPos({
+        outlet_id: selectedOutletId,
+        payment_method: paymentMethod,
         items: cart.map((item) => ({
           outlet_product_id: item.id,
           quantity: item.quantity,
@@ -98,44 +162,117 @@ const OrderPage = () => {
         notes: '',
       });
 
-      const orderData = orderRes.data.data;
+      const orderData = orderRes.data?.data ?? orderRes.data;
 
-      // 2. Settle payment as CASH
-      try {
-        await api.post('/payments/manual-settle/', {
-          order_id: orderData.order_id || orderData.id,
-          payment_method: 'CASH',
-          amount_received: parseFloat(orderData.grand_total || grandTotal),
-          change_given: 0,
+      if (paymentMethod === 'QRIS_MIDTRANS') {
+        const qrisRes = await paymentsApi.initiateQris(orderData.order_id || orderData.id);
+        const qrisData = qrisRes.data?.data ?? qrisRes.data;
+        setQrisModalData({ order: orderData, qris: qrisData });
+      } else {
+        try {
+          await paymentsApi.manualSettle({
+            order_id: orderData.order_id || orderData.id,
+            payment_method: paymentMethod,
+            amount_received: parseFloat(orderData.grand_total || grandTotal),
+            change_given: 0,
+          });
+        } catch (settleErr) {
+          console.warn('Payment settle warning:', settleErr);
+        }
+
+        setReceiptData({
+          orderNumber: orderData.order_number || `#${(orderData.order_id || orderData.id || '').toString().slice(0, 8)}`,
+          grandTotal: parseFloat(orderData.grand_total || grandTotal),
+          placedAt: orderData.placed_at || new Date().toISOString(),
+          paymentMethod,
         });
-      } catch (settleErr) {
-        // Payment might already be settled or not required — still show receipt
-        console.warn('Payment settle warning:', settleErr);
+        setShowReceipt(true);
       }
-
-      // 3. Show receipt with real data
-      setReceiptData({
-        orderNumber: orderData.order_number || `#${(orderData.order_id || orderData.id || '').slice(0, 8)}`,
-        grandTotal: parseFloat(orderData.grand_total || grandTotal),
-        placedAt: orderData.placed_at || new Date().toISOString(),
-      });
-      setShowReceipt(true);
     } catch (err) {
-      console.error('Failed to create order:', err);
-      const msg = err.response?.data?.message || 'Gagal membuat order. Coba lagi.';
-      alert(msg);
+      handleApiError(err, { showError: (msg) => toast.error(msg) });
     } finally {
       setIsSending(false);
     }
   };
 
-  const formatCurrency = (val) => `Rp${val.toLocaleString('id-ID', { minimumFractionDigits: 0 })}`;
+  const handleQrisSettled = (order) => {
+    setQrisModalData(null);
+    setReceiptData({
+      orderNumber: order.order_number || `#${(order.order_id || order.id || '').toString().slice(0, 8)}`,
+      grandTotal: parseFloat(order.grand_total || grandTotal),
+      placedAt: order.placed_at || new Date().toISOString(),
+      paymentMethod: 'QRIS_MIDTRANS',
+    });
+    setShowReceipt(true);
+  };
+
+  const handleQrisClose = () => setQrisModalData(null);
+
+  const handlePrint = () => {
+    const el = document.getElementById('receipt-print-area');
+    if (!el) return;
+    const win = window.open('', '_blank', 'width=420,height=680');
+    win.document.write(`<!DOCTYPE html><html><head><title>Receipt</title>
+      <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Segoe UI',sans-serif;background:#fff;padding:24px;font-size:12px;color:#1a1a1a}
+        .center{text-align:center}.bold{font-weight:700}.muted{color:#888}
+        .row{display:flex;justify-content:space-between;margin-bottom:6px}
+        .divider{border-top:1px dashed #ccc;margin:10px 0}
+        .total-row{display:flex;justify-content:space-between;margin-top:8px}
+        .grand{font-size:14px;font-weight:700;color:#d4581f}
+        .badge{display:inline-block;background:#fde8d8;color:#d4581f;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;margin-bottom:4px}
+      </style></head><body>${el.innerHTML}</body></html>`);
+    win.document.close();
+    win.focus();
+    win.print();
+    win.close();
+  };
+
+  const formatCurrency = (val) => formatIDR(val);
+
+  const paymentMethodLabel = {
+    CASH: 'Tunai',
+    QRIS_MIDTRANS: 'QRIS',
+  };
+
+  const selectedOutletName = outlets.find((o) => o.id === selectedOutletId)?.name ?? '';
 
   return (
     <>
-      {/* Top Bar with Category Tabs & Search */}
-      <header className="flex items-center gap-6 px-8 py-5 bg-white sticky top-0 z-40 border-b border-feast-bg">
-        <div className="flex bg-feast-bg rounded-full p-1.5 overflow-x-auto">
+      {/* Top Bar */}
+      <header className="flex items-center gap-4 px-8 py-5 bg-white sticky top-0 z-40 border-b border-feast-bg">
+        {/* Owner outlet selector */}
+        {isOwner && (
+          <div className="relative flex-shrink-0">
+            {isLoadingOutlets ? (
+              <div className="flex items-center gap-2 px-4 py-2.5 bg-feast-bg rounded-xl text-sm text-feast-dark-muted">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Memuat outlet...</span>
+              </div>
+            ) : (
+              <div className="relative">
+                <Store size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-feast-sunset pointer-events-none" />
+                <select
+                  value={selectedOutletId}
+                  onChange={(e) => setSelectedOutletId(e.target.value)}
+                  className="appearance-none bg-feast-bg rounded-xl pl-9 pr-9 py-2.5 text-sm font-semibold font-vietnam text-feast-dark focus:outline-none focus:ring-2 focus:ring-feast-sunset/30 min-w-[180px] cursor-pointer"
+                >
+                  <option value="">-- Pilih Outlet --</option>
+                  {outlets.map((outlet) => (
+                    <option key={outlet.id} value={outlet.id}>
+                      {outlet.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-feast-dark-muted pointer-events-none" />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Category tabs */}
+        <div className="flex bg-feast-bg rounded-full p-1.5 overflow-x-auto flex-1">
           <button
             onClick={() => setActiveCategory('ALL')}
             className={`px-5 py-2 rounded-full text-xs font-semibold tracking-[0.1em] transition-all duration-200 whitespace-nowrap ${
@@ -160,7 +297,9 @@ const OrderPage = () => {
             </button>
           ))}
         </div>
-        <div className="relative flex-1 max-w-xl">
+
+        {/* Search */}
+        <div className="relative flex-shrink-0 w-72">
           <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-feast-dark-muted/50" />
           <input
             type="text"
@@ -173,9 +312,15 @@ const OrderPage = () => {
       </header>
 
       <div className="flex flex-1 overflow-hidden h-[calc(100vh-85px)] relative">
-        {/* Main Content — Menu Grid */}
+        {/* Menu Grid */}
         <div className="flex-1 overflow-y-auto p-8">
-          {isLoadingMenu ? (
+          {isOwner && !selectedOutletId ? (
+            <div className="flex flex-col items-center justify-center py-20 text-feast-dark-muted">
+              <Store className="w-14 h-14 mb-4 text-feast-sunset/40" />
+              <p className="text-lg font-semibold">Pilih outlet terlebih dahulu</p>
+              <p className="text-sm mt-1">Gunakan dropdown di atas untuk memilih outlet yang ingin dipesan.</p>
+            </div>
+          ) : isLoadingMenu ? (
             <div className="flex items-center justify-center py-20">
               <Loader2 className="animate-spin w-8 h-8 text-feast-sunset" />
             </div>
@@ -242,9 +387,15 @@ const OrderPage = () => {
         {/* Right Sidebar — Current Order */}
         <aside className="w-80 bg-white border-l border-feast-bg flex flex-col h-full sticky top-0">
           <div className="p-6">
-            <h2 className="text-xl font-bold font-jakarta text-feast-dark pb-4 border-b border-feast-bg">
+            <h2 className="text-xl font-bold font-jakarta text-feast-dark pb-1 border-b border-feast-bg">
               Current Order
             </h2>
+            {selectedOutletName && (
+              <p className="text-xs text-feast-sunset font-semibold mt-2 flex items-center gap-1">
+                <Store size={12} />
+                {selectedOutletName}
+              </p>
+            )}
           </div>
 
           <div className="flex-1 overflow-y-auto px-6 space-y-5">
@@ -266,21 +417,45 @@ const OrderPage = () => {
                     initial={{ opacity: 0, scale: 0.8, x: 20 }}
                     animate={{ opacity: 1, scale: 1, x: 0 }}
                     exit={{ opacity: 0, scale: 0.8, x: -20 }}
-                    transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                    className="flex justify-between items-start"
+                    transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                    className="flex items-center gap-3"
                   >
-                    <div className="flex gap-3">
-                      <span className="w-6 h-6 rounded bg-feast-surface-low text-feast-dark text-xs font-bold flex items-center justify-center flex-shrink-0">
-                        {item.quantity}x
+                    {/* Stepper */}
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <button
+                        onClick={() => handleDecreaseCart(item.id)}
+                        className="w-6 h-6 rounded-full bg-feast-bg flex items-center justify-center text-feast-dark hover:bg-feast-sunset hover:text-white transition-colors"
+                      >
+                        <Minus size={11} />
+                      </button>
+                      <span className="w-5 text-center text-sm font-bold text-feast-dark tabular-nums">
+                        {item.quantity}
                       </span>
-                      <div>
-                        <h4 className="text-sm font-semibold text-feast-dark leading-tight">
-                          {item.title}
-                        </h4>
-                      </div>
+                      <button
+                        onClick={() => handleAddToCart(item)}
+                        className="w-6 h-6 rounded-full bg-feast-sunset flex items-center justify-center text-white hover:bg-[#c94e2a] transition-colors"
+                      >
+                        <Plus size={11} />
+                      </button>
                     </div>
-                    <span className="text-sm font-bold text-feast-dark-secondary">
-                      {formatCurrency(item.price * item.quantity)}
+
+                    {/* Name + diskon badge */}
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-sm font-semibold text-feast-dark leading-tight truncate">
+                        {item.title}
+                      </h4>
+                      {item.promotion && (
+                        <span className="text-[10px] text-feast-sunset font-semibold">
+                          {item.promotion.discount_type === 'percent'
+                            ? `${parseFloat(item.promotion.discount_value)}% off`
+                            : `- ${formatCurrency(parseFloat(item.promotion.discount_value))}`}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Subtotal pakai effectivePrice */}
+                    <span className="text-sm font-bold text-feast-dark-secondary flex-shrink-0">
+                      {formatCurrency((item.effectivePrice ?? item.price) * item.quantity)}
                     </span>
                   </motion.div>
                 ))
@@ -289,10 +464,17 @@ const OrderPage = () => {
           </div>
 
           <div className="p-6 bg-white border-t border-feast-bg space-y-3">
+            {/* Totals */}
             <div className="flex justify-between items-center text-sm">
               <span className="text-feast-dark-muted font-medium">Subtotal</span>
               <span className="font-bold text-feast-dark-secondary">{formatCurrency(subtotal)}</span>
             </div>
+            {discountTotal > 0 && (
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-feast-sunset font-medium">Diskon</span>
+                <span className="font-bold text-feast-sunset">- {formatCurrency(discountTotal)}</span>
+              </div>
+            )}
             <div className="flex justify-between items-center text-sm">
               <span className="text-feast-dark-muted font-medium">PPN (10%)</span>
               <span className="font-bold text-feast-dark-secondary">{formatCurrency(tax)}</span>
@@ -301,15 +483,39 @@ const OrderPage = () => {
               <span className="text-lg font-bold font-jakarta text-feast-dark">Total</span>
               <span className="text-xl font-bold text-feast-sunset">{formatCurrency(grandTotal)}</span>
             </div>
+
+            {/* Payment Method Selector — Tunai & QRIS only */}
+            <div className="pt-2">
+              <p className="text-xs font-semibold text-feast-dark-muted uppercase tracking-wider mb-2">
+                Metode Pembayaran
+              </p>
+              <div className="grid grid-cols-2 gap-1.5 bg-feast-bg rounded-xl p-1">
+                {PAYMENT_METHODS.map(({ key, label, icon: Icon }) => (
+                  <button
+                    key={key}
+                    onClick={() => setPaymentMethod(key)}
+                    className={`flex flex-col items-center gap-1 py-2.5 rounded-lg text-xs font-semibold transition-all ${
+                      paymentMethod === key
+                        ? 'bg-feast-sunset text-white shadow-sm'
+                        : 'text-feast-dark-muted hover:text-feast-dark'
+                    }`}
+                  >
+                    <Icon className="w-4 h-4" />
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <motion.button
-              whileHover={cart.length > 0 ? { scale: 1.02 } : {}}
-              whileTap={cart.length > 0 ? { scale: 0.98 } : {}}
+              whileHover={cart.length > 0 && selectedOutletId ? { scale: 1.02 } : {}}
+              whileTap={cart.length > 0 && selectedOutletId ? { scale: 0.98 } : {}}
               onClick={handleSendToKitchen}
-              disabled={cart.length === 0 || isSending}
-              className={`w-full mt-4 py-3.5 font-semibold font-vietnam rounded-xl transition-all flex items-center justify-center gap-2 ${
-                cart.length === 0 || isSending
-                ? 'bg-feast-surface-low text-feast-dark-muted cursor-not-allowed'
-                : 'bg-feast-amber text-white hover:bg-[#c29837]'
+              disabled={cart.length === 0 || isSending || !selectedOutletId}
+              className={`w-full mt-2 py-3.5 font-semibold font-vietnam rounded-xl transition-all flex items-center justify-center gap-2 ${
+                cart.length === 0 || isSending || !selectedOutletId
+                  ? 'bg-feast-surface-low text-feast-dark-muted cursor-not-allowed'
+                  : 'bg-feast-amber text-white hover:bg-[#c29837]'
               }`}
             >
               {isSending ? (
@@ -321,7 +527,7 @@ const OrderPage = () => {
           </div>
         </aside>
 
-        {/* Receipt Overlay (Modal) */}
+        {/* Receipt Overlay */}
         <AnimatePresence>
           {showReceipt && (
             <motion.div
@@ -334,11 +540,10 @@ const OrderPage = () => {
                 initial={{ scale: 0.9, y: 20, opacity: 0 }}
                 animate={{ scale: 1, y: 0, opacity: 1 }}
                 exit={{ scale: 0.9, y: 20, opacity: 0 }}
-                transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                transition={{ type: 'spring', damping: 25, stiffness: 300 }}
                 className="bg-[#f9f9f9] rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden flex flex-col relative"
               >
-                {/* Receipt Content */}
-                <div className="p-8 pb-6 flex-1 overflow-y-auto">
+                <div id="receipt-print-area" className="p-8 pb-6 flex-1 overflow-y-auto">
                   <div className="text-center mb-6">
                     <div className="w-12 h-12 bg-[#fbdfce] text-[#d4581f] rounded-full flex items-center justify-center mx-auto mb-3">
                       <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
@@ -346,6 +551,9 @@ const OrderPage = () => {
                       </svg>
                     </div>
                     <h2 className="text-lg font-bold font-jakarta text-feast-dark leading-tight">FEAST Kitchen</h2>
+                    {selectedOutletName && (
+                      <p className="text-xs text-feast-sunset font-semibold mt-0.5">{selectedOutletName}</p>
+                    )}
                     <p className="text-xs text-feast-dark-muted mt-1">Order Confirmed</p>
                   </div>
 
@@ -353,10 +561,7 @@ const OrderPage = () => {
                     <div>
                       <p className="text-[9px] uppercase tracking-wider text-feast-dark-muted font-bold mb-1">Date & Time</p>
                       <p className="text-xs font-bold text-feast-dark">
-                        {receiptData?.placedAt
-                          ? new Date(receiptData.placedAt).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })
-                          : new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })
-                        }
+                        {formatDateTime(receiptData?.placedAt || new Date().toISOString())}
                       </p>
                     </div>
                     <div className="text-right">
@@ -365,22 +570,31 @@ const OrderPage = () => {
                     </div>
                   </div>
 
-                  {/* Semi-circles */}
-                  <div className="absolute top-[180px] -left-3 w-6 h-6 bg-black/30 rounded-full" />
-                  <div className="absolute top-[180px] -right-3 w-6 h-6 bg-black/30 rounded-full" />
+                  <div className="absolute top-[195px] -left-3 w-6 h-6 bg-black/30 rounded-full" />
+                  <div className="absolute top-[195px] -right-3 w-6 h-6 bg-black/30 rounded-full" />
 
                   <div className="space-y-4 mb-6">
-                    {cart.map((item) => (
-                      <div key={item.id} className="flex justify-between items-start gap-4">
-                        <div className="flex gap-3">
-                          <span className="text-xs font-bold text-feast-dark-muted">{item.quantity}x</span>
-                          <div>
-                            <p className="text-xs font-bold text-feast-dark leading-tight">{item.title}</p>
+                    {cart.map((item) => {
+                      const ep = item.effectivePrice ?? item.price;
+                      return (
+                        <div key={item.id} className="flex justify-between items-start gap-4">
+                          <div className="flex gap-3">
+                            <span className="text-xs font-bold text-feast-dark-muted">{item.quantity}x</span>
+                            <div>
+                              <p className="text-xs font-bold text-feast-dark leading-tight">{item.title}</p>
+                              {item.promotion && (
+                                <p className="text-[10px] text-feast-sunset">
+                                  {item.promotion.discount_type === 'percent'
+                                    ? `${parseFloat(item.promotion.discount_value)}% off`
+                                    : `- ${formatCurrency(parseFloat(item.promotion.discount_value))}`}
+                                </p>
+                              )}
+                            </div>
                           </div>
+                          <span className="text-xs font-bold text-feast-dark">{formatCurrency(ep * item.quantity)}</span>
                         </div>
-                        <span className="text-xs font-bold text-feast-dark">{formatCurrency(item.price * item.quantity)}</span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
 
                   <div className="bg-white rounded-xl p-4 space-y-2 mb-2 shadow-sm border border-gray-100">
@@ -388,6 +602,12 @@ const OrderPage = () => {
                       <span className="text-feast-dark-muted font-medium">Subtotal</span>
                       <span className="font-bold text-feast-dark-secondary">{formatCurrency(subtotal)}</span>
                     </div>
+                    {discountTotal > 0 && (
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-feast-sunset font-medium">Diskon</span>
+                        <span className="font-bold text-feast-sunset">- {formatCurrency(discountTotal)}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between items-center text-xs pb-3 border-b border-gray-100">
                       <span className="text-feast-dark-muted font-medium">PPN (10%)</span>
                       <span className="font-bold text-feast-dark-secondary">{formatCurrency(tax)}</span>
@@ -400,12 +620,13 @@ const OrderPage = () => {
                     </div>
                     <div className="flex justify-between items-center text-[10px] pt-1">
                       <span className="text-feast-dark-muted">Payment Method</span>
-                      <span className="font-bold text-feast-dark-secondary">CASH</span>
+                      <span className="font-bold text-feast-dark-secondary">
+                        {paymentMethodLabel[receiptData?.paymentMethod] || receiptData?.paymentMethod || 'Tunai'}
+                      </span>
                     </div>
                   </div>
                 </div>
 
-                {/* Receipt Actions */}
                 <div className="p-6 pt-0 flex gap-3">
                   <button
                     onClick={() => {
@@ -418,6 +639,7 @@ const OrderPage = () => {
                     Close & New Order
                   </button>
                   <button
+                    onClick={handlePrint}
                     className="flex-1 py-3 bg-[#e56832] text-white font-bold text-xs rounded-lg hover:bg-[#d4581f] transition-colors shadow-sm"
                   >
                     Print Receipt
@@ -428,6 +650,15 @@ const OrderPage = () => {
           )}
         </AnimatePresence>
       </div>
+
+      {/* QRIS Payment Modal */}
+      <QRPaymentModal
+        isOpen={!!qrisModalData}
+        order={qrisModalData?.order}
+        qris={qrisModalData?.qris}
+        onClose={handleQrisClose}
+        onSettled={handleQrisSettled}
+      />
     </>
   );
 };

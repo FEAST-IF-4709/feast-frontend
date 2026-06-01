@@ -7,18 +7,28 @@ import { handleApiError } from '../../../api/errorHandler';
 import { useToast } from '../../../hooks/useToast';
 import { useApi } from '../../../hooks/useApi';
 
-const toLocalDatetimeValue = (isoString) => {
+const pad = (n) => String(n).padStart(2, '0');
+
+const toLocalDate = (isoString) => {
   if (!isoString) return '';
   const d = new Date(isoString);
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
+
+const toLocalTime = (isoString) => {
+  if (!isoString) return '';
+  const d = new Date(isoString);
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
 export default function PromotionModal({ isOpen, onClose, editingItem, onSuccess }) {
   const toast = useToast();
 
   const [form, setForm] = useState({
-    brand_product: '', discount_type: 'PERCENT', discount_value: '', starts_at: '', ends_at: '', is_active: true,
+    brand_product_id: '', discount_type: 'PERCENT', discount_value: '',
+    starts_date: '', starts_time: '00:00',
+    ends_date: '', ends_time: '23:59',
+    is_active: true,
   });
   const [errors, setErrors] = useState({});
   const [isSaving, setIsSaving] = useState(false);
@@ -31,27 +41,40 @@ export default function PromotionModal({ isOpen, onClose, editingItem, onSuccess
     setErrors({});
     if (editingItem) {
       setForm({
-        brand_product: String(editingItem.brand_product ?? ''),
+        brand_product_id: String(editingItem.brand_product_id ?? ''),
         discount_type: editingItem.discount_type ?? 'PERCENT',
         discount_value: editingItem.discount_value ?? '',
-        starts_at: toLocalDatetimeValue(editingItem.starts_at),
-        ends_at: toLocalDatetimeValue(editingItem.ends_at),
+        starts_date: toLocalDate(editingItem.starts_at),
+        starts_time: toLocalTime(editingItem.starts_at) || '00:00',
+        ends_date: toLocalDate(editingItem.ends_at),
+        ends_time: toLocalTime(editingItem.ends_at) || '23:59',
         is_active: editingItem.is_active ?? true,
       });
     } else {
-      setForm({ brand_product: '', discount_type: 'PERCENT', discount_value: '', starts_at: '', ends_at: '', is_active: true });
+      setForm({
+        brand_product_id: '', discount_type: 'PERCENT', discount_value: '',
+        starts_date: '', starts_time: '00:00',
+        ends_date: '', ends_time: '23:59',
+        is_active: true,
+      });
     }
   }, [isOpen, editingItem]);
 
   const validate = () => {
     const errs = {};
-    if (!form.brand_product) errs.brand_product = 'Pilih menu terlebih dahulu';
-    if (!form.discount_value || parseFloat(form.discount_value) <= 0) errs.discount_value = 'Nilai diskon harus lebih dari 0';
-    if (form.discount_type === 'PERCENT' && parseFloat(form.discount_value) > 100) errs.discount_value = 'Diskon persen maksimal 100';
-    if (!form.starts_at) errs.starts_at = 'Tanggal mulai wajib diisi';
-    if (!form.ends_at) errs.ends_at = 'Tanggal selesai wajib diisi';
-    if (form.starts_at && form.ends_at && new Date(form.ends_at) <= new Date(form.starts_at)) {
-      errs.ends_at = 'Tanggal selesai harus setelah tanggal mulai';
+    if (!form.brand_product_id) errs.brand_product_id = 'Pilih menu terlebih dahulu';
+    const discountNum = parseFloat(form.discount_value);
+    if (!form.discount_value || isNaN(discountNum) || discountNum <= 0) {
+      errs.discount_value = 'Nilai diskon harus lebih dari 0';
+    } else if (form.discount_type === 'PERCENT' && discountNum > 100) {
+      errs.discount_value = 'Diskon persen maksimal 100';
+    }
+    if (!form.starts_date) errs.starts_date = 'Tanggal mulai wajib diisi';
+    if (!form.ends_date) errs.ends_date = 'Tanggal selesai wajib diisi';
+    if (form.starts_date && form.ends_date) {
+      const start = new Date(`${form.starts_date}T${form.starts_time || '00:00'}`);
+      const end = new Date(`${form.ends_date}T${form.ends_time || '23:59'}`);
+      if (end <= start) errs.ends_date = 'Tanggal selesai harus setelah tanggal mulai';
     }
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -64,11 +87,11 @@ export default function PromotionModal({ isOpen, onClose, editingItem, onSuccess
     setIsSaving(true);
     try {
       const payload = {
-        brand_product: parseInt(form.brand_product),
+        brand_product_id: form.brand_product_id,
         discount_type: form.discount_type,
         discount_value: parseFloat(form.discount_value),
-        starts_at: new Date(form.starts_at).toISOString(),
-        ends_at: new Date(form.ends_at).toISOString(),
+        starts_at: new Date(`${form.starts_date}T${form.starts_time || '00:00'}`).toISOString(),
+        ends_at: new Date(`${form.ends_date}T${form.ends_time || '23:59'}`).toISOString(),
         is_active: form.is_active,
       };
 
@@ -118,11 +141,11 @@ export default function PromotionModal({ isOpen, onClose, editingItem, onSuccess
             <form onSubmit={handleSubmit} className="space-y-4">
               <FormField
                 label="Menu"
-                name="brand_product"
+                name="brand_product_id"
                 as="select"
-                value={form.brand_product}
-                onChange={(e) => setForm({ ...form, brand_product: e.target.value })}
-                error={errors.brand_product}
+                value={form.brand_product_id}
+                onChange={(e) => setForm({ ...form, brand_product_id: e.target.value })}
+                error={errors.brand_product_id}
                 required
               >
                 <option value="">-- Pilih Menu --</option>
@@ -168,6 +191,8 @@ export default function PromotionModal({ isOpen, onClose, editingItem, onSuccess
                 label={form.discount_type === 'PERCENT' ? 'Nilai Diskon (%)' : 'Nilai Diskon (Rp)'}
                 name="discount_value"
                 type="number"
+                min="0"
+                step="0.01"
                 value={form.discount_value}
                 onChange={(e) => setForm({ ...form, discount_value: e.target.value })}
                 placeholder={form.discount_type === 'PERCENT' ? 'cth. 15 (untuk 15%)' : 'cth. 5000'}
@@ -176,25 +201,52 @@ export default function PromotionModal({ isOpen, onClose, editingItem, onSuccess
                 required
               />
 
-              <div className="grid grid-cols-2 gap-3">
-                <FormField
-                  label="Mulai"
-                  name="starts_at"
-                  type="datetime-local"
-                  value={form.starts_at}
-                  onChange={(e) => setForm({ ...form, starts_at: e.target.value })}
-                  error={errors.starts_at}
-                  required
-                />
-                <FormField
-                  label="Selesai"
-                  name="ends_at"
-                  type="datetime-local"
-                  value={form.ends_at}
-                  onChange={(e) => setForm({ ...form, ends_at: e.target.value })}
-                  error={errors.ends_at}
-                  required
-                />
+              {/* Tanggal mulai */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-feast-dark-secondary font-vietnam">
+                  Tanggal Mulai <span className="text-feast-beetroot">*</span>
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="date"
+                    value={form.starts_date}
+                    onChange={(e) => setForm({ ...form, starts_date: e.target.value })}
+                    className="bg-feast-bg rounded-xl px-4 py-3 text-sm text-feast-dark font-vietnam focus:outline-none focus:ring-2 focus:ring-feast-sunset/30 transition-all"
+                  />
+                  <input
+                    type="time"
+                    value={form.starts_time}
+                    onChange={(e) => setForm({ ...form, starts_time: e.target.value })}
+                    className="bg-feast-bg rounded-xl px-4 py-3 text-sm text-feast-dark font-vietnam focus:outline-none focus:ring-2 focus:ring-feast-sunset/30 transition-all"
+                  />
+                </div>
+                {errors.starts_date && (
+                  <p className="text-xs text-feast-beetroot font-vietnam">{errors.starts_date}</p>
+                )}
+              </div>
+
+              {/* Tanggal selesai */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-feast-dark-secondary font-vietnam">
+                  Tanggal Selesai <span className="text-feast-beetroot">*</span>
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="date"
+                    value={form.ends_date}
+                    onChange={(e) => setForm({ ...form, ends_date: e.target.value })}
+                    className="bg-feast-bg rounded-xl px-4 py-3 text-sm text-feast-dark font-vietnam focus:outline-none focus:ring-2 focus:ring-feast-sunset/30 transition-all"
+                  />
+                  <input
+                    type="time"
+                    value={form.ends_time}
+                    onChange={(e) => setForm({ ...form, ends_time: e.target.value })}
+                    className="bg-feast-bg rounded-xl px-4 py-3 text-sm text-feast-dark font-vietnam focus:outline-none focus:ring-2 focus:ring-feast-sunset/30 transition-all"
+                  />
+                </div>
+                {errors.ends_date && (
+                  <p className="text-xs text-feast-beetroot font-vietnam">{errors.ends_date}</p>
+                )}
               </div>
 
               <div className="flex items-center justify-between py-1">

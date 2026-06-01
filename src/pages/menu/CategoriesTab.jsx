@@ -93,7 +93,7 @@ export default function CategoriesTab() {
                     <td className="px-6 py-4 text-sm text-feast-dark-muted font-vietnam">{i + 1}</td>
                     <td className="px-6 py-4">
                       <span className="inline-flex items-center justify-center w-8 h-8 bg-feast-bg rounded-lg text-sm font-bold text-feast-dark font-jakarta">
-                        {cat.display_order ?? 0}
+                        {cat.sequence ?? 0}
                       </span>
                     </td>
                     <td className="px-6 py-4">

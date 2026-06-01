@@ -8,15 +8,15 @@ import { useToast } from '../../../hooks/useToast';
 
 export default function CategoryModal({ isOpen, onClose, editingItem, onSuccess }) {
   const toast = useToast();
-  const [form, setForm] = useState({ name: '', display_order: 0 });
+  const [form, setForm] = useState({ name: '', sequence: 0 });
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
     setForm(
       editingItem
-        ? { name: editingItem.name, display_order: editingItem.display_order ?? 0 }
-        : { name: '', display_order: 0 }
+        ? { name: editingItem.name, sequence: editingItem.sequence ?? 0 }
+        : { name: '', sequence: 0 }
     );
   }, [isOpen, editingItem]);
 
@@ -78,10 +78,11 @@ export default function CategoryModal({ isOpen, onClose, editingItem, onSuccess 
               />
               <FormField
                 label="Urutan Tampil"
-                name="display_order"
+                name="sequence"
                 type="number"
-                value={form.display_order}
-                onChange={(e) => setForm({ ...form, display_order: parseInt(e.target.value) || 0 })}
+                min="0"
+                value={form.sequence}
+                onChange={(e) => setForm({ ...form, sequence: Math.max(0, parseInt(e.target.value) || 0) })}
                 helperText="Angka lebih kecil tampil lebih dulu"
               />
               <div className="flex gap-3 pt-2">

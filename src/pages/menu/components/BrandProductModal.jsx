@@ -20,12 +20,12 @@ export default function BrandProductModal({ isOpen, onClose, editingItem, catego
     if (editingItem) {
       setForm({
         name: editingItem.name ?? '',
-        category: editingItem.category ?? '',
+        category: editingItem.category_id ?? '',
         description: editingItem.description ?? '',
         base_price: editingItem.base_price ?? '',
         is_active: editingItem.is_active ?? true,
       });
-      setImagePreview(editingItem.image ?? null);
+      setImagePreview(editingItem.image_url ?? null);
     } else {
       setForm({ name: '', category: '', description: '', base_price: '', is_active: true });
       setImagePreview(null);
@@ -58,7 +58,7 @@ export default function BrandProductModal({ isOpen, onClose, editingItem, catego
     try {
       const formData = new FormData();
       formData.append('name', form.name.trim());
-      formData.append('category', form.category);
+      formData.append('category_id', form.category);
       formData.append('description', form.description || '');
       formData.append('base_price', form.base_price);
       formData.append('is_active', form.is_active);
