@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Search, Bell, Settings, TrendingUp, TrendingDown, MoreHorizontal, AlertTriangle, Loader2 } from 'lucide-react';
+import { TrendingUp, TrendingDown, MoreHorizontal, AlertTriangle, Loader2 } from 'lucide-react';
 import { getBrandId, getOutletId, getAccessToken } from './api/auth';
 import { connectDashboard } from './api/websocket';
 import { analyticsApi } from './api/analytics';
 import { recommendationsApi } from './api/recommendations';
 import { formatIDR } from './utils/format';
+
+const MAX_QUEUE = 10;
+const BOTTLENECK_THRESHOLD = 8;
 
 const Dashboard = () => {
   const [timePeriod, setTimePeriod] = useState('This Week');
@@ -13,6 +16,9 @@ const Dashboard = () => {
   const [chartData, setChartData] = useState([]);
   const [popularItems, setPopularItems] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [kitchenData, setKitchenData] = useState(null);
+  const [kitchenLoading, setKitchenLoading] = useState(true);
+  const [kitchenError, setKitchenError] = useState(false);
   const wsRef = useRef(null);
 
   // Calculate date range based on selected period
@@ -58,10 +64,28 @@ const Dashboard = () => {
     }
   };
 
+  const fetchKitchenQueue = async () => {
+    setKitchenLoading(true);
+    setKitchenError(false);
+    try {
+      const res = await analyticsApi.getKitchenQueue();
+      setKitchenData(res.data.data);
+    } catch (err) {
+      console.error('Kitchen queue fetch error:', err);
+      setKitchenError(true);
+    } finally {
+      setKitchenLoading(false);
+    }
+  };
+
   useEffect(() => {
     setIsLoading(true);
     fetchDashboard();
   }, [timePeriod]);
+
+  useEffect(() => {
+    fetchKitchenQueue();
+  }, []);
 
   // WebSocket for real-time updates
   useEffect(() => {
@@ -70,8 +94,10 @@ const Dashboard = () => {
     if (outletId && token) {
       wsRef.current = connectDashboard(outletId, token, {
         onMessage: (data) => {
-          // Refetch on any dashboard event
-          if (data.event) fetchDashboard();
+          if (data.event) {
+            fetchDashboard();
+            fetchKitchenQueue();
+          }
         },
       });
     }
@@ -97,28 +123,6 @@ const Dashboard = () => {
 
   return (
     <>
-      {/* Top Bar */}
-      <header className="flex justify-between items-center px-8 py-5 bg-white sticky top-0 z-40">
-        <h2 className="text-xl font-bold font-jakarta text-feast-dark">Analytics Overview</h2>
-        <div className="flex items-center gap-4">
-          <div className="relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-feast-dark-muted/50" />
-            <input
-              type="text"
-              placeholder="Search metrics..."
-              className="bg-feast-bg rounded-xl pl-9 pr-4 py-2.5 text-sm text-feast-dark font-vietnam placeholder-feast-dark-muted/40 focus:outline-none focus:ring-2 focus:ring-feast-sunset/20 w-52"
-            />
-          </div>
-          <button className="relative p-2 text-feast-dark-muted hover:text-feast-dark transition-colors">
-            <Bell size={20} />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-feast-sunset rounded-full" />
-          </button>
-          <button className="p-2 text-feast-dark-muted hover:text-feast-dark transition-colors">
-            <Settings size={20} />
-          </button>
-        </div>
-      </header>
-
       <motion.div
         variants={containerVariants}
         initial="hidden"
@@ -263,7 +267,7 @@ const Dashboard = () => {
             </div>
           </motion.div>
 
-          {/* Kitchen Load (kept as visual indicator) */}
+          {/* Kitchen Load */}
           <motion.div variants={itemVariants} className="bg-white rounded-2xl p-6">
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-lg font-bold font-jakarta text-feast-dark">Kitchen Load</h3>
@@ -272,22 +276,62 @@ const Dashboard = () => {
                 Live
               </span>
             </div>
-            <div className="space-y-5">
-              <LoadBar label="Grill Station" percent={85} color="bg-feast-sunset" />
-              <LoadBar label="Fryer Station" percent={60} color="bg-feast-amber" />
-              <LoadBar label="Expo / Assembly" percent={92} color="bg-feast-sunset" />
-            </div>
 
-            {/* Bottleneck Alert */}
-            <div className="mt-6 bg-feast-surface-lowest rounded-xl p-4 flex items-start gap-3">
-              <AlertTriangle size={18} className="text-feast-sunset flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-semibold text-feast-dark">Bottleneck Alert</p>
-                <p className="text-xs text-feast-dark-muted mt-1">
-                  Expo station is nearing max capacity. Consider shifting prep staff to assembly.
-                </p>
+            {kitchenLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="animate-spin w-6 h-6 text-feast-sunset" />
               </div>
-            </div>
+            ) : kitchenError ? (
+              <p className="text-sm text-feast-dark-muted text-center py-8">Unable to load kitchen data.</p>
+            ) : (
+              <>
+                <div className="space-y-5">
+                  <LoadBar
+                    label="Queue (Waiting)"
+                    count={kitchenData?.received ?? 0}
+                    percent={Math.min(Math.round(((kitchenData?.received ?? 0) / MAX_QUEUE) * 100), 100)}
+                    color={(kitchenData?.received ?? 0) >= BOTTLENECK_THRESHOLD ? 'bg-feast-sunset' : 'bg-feast-amber'}
+                  />
+                  <LoadBar
+                    label="In Progress"
+                    count={kitchenData?.in_progress ?? 0}
+                    percent={Math.min(Math.round(((kitchenData?.in_progress ?? 0) / MAX_QUEUE) * 100), 100)}
+                    color={(kitchenData?.in_progress ?? 0) >= BOTTLENECK_THRESHOLD ? 'bg-feast-sunset' : 'bg-feast-amber'}
+                  />
+                  <LoadBar
+                    label="Ready to Serve"
+                    count={kitchenData?.ready ?? 0}
+                    percent={Math.min(Math.round(((kitchenData?.ready ?? 0) / MAX_QUEUE) * 100), 100)}
+                    color="bg-green-400"
+                  />
+                </div>
+
+                {kitchenData?.avg_prep_minutes != null && (
+                  <p className="text-xs text-feast-dark-muted mt-4">
+                    avg ~{kitchenData.avg_prep_minutes}m prep (last 4h)
+                  </p>
+                )}
+
+                {(() => {
+                  const bottleneck =
+                    (kitchenData?.received ?? 0) >= BOTTLENECK_THRESHOLD ? 'Queue (Waiting)'
+                    : (kitchenData?.in_progress ?? 0) >= BOTTLENECK_THRESHOLD ? 'In Progress'
+                    : (kitchenData?.ready ?? 0) >= BOTTLENECK_THRESHOLD ? 'Ready to Serve'
+                    : null;
+                  return bottleneck ? (
+                    <div className="mt-6 bg-feast-surface-lowest rounded-xl p-4 flex items-start gap-3">
+                      <AlertTriangle size={18} className="text-feast-sunset flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-semibold text-feast-dark">Bottleneck Alert</p>
+                        <p className="text-xs text-feast-dark-muted mt-1">
+                          {bottleneck} stage is nearing max capacity.
+                        </p>
+                      </div>
+                    </div>
+                  ) : null;
+                })()}
+              </>
+            )}
           </motion.div>
         </div>
       </motion.div>
@@ -334,12 +378,12 @@ const TopItem = ({ name, orders, trending, rank }) => (
   </div>
 );
 
-const LoadBar = ({ label, percent, color }) => (
+const LoadBar = ({ label, percent, color, count }) => (
   <div>
     <div className="flex items-center justify-between mb-1.5">
       <span className="text-sm text-feast-dark-secondary font-medium">{label}</span>
       <span className={`text-sm font-bold ${percent >= 80 ? 'text-feast-sunset' : 'text-feast-dark'}`}>
-        {percent}%
+        {count !== undefined ? `${count} / ${MAX_QUEUE}` : `${percent}%`}
       </span>
     </div>
     <div className="w-full h-2.5 bg-feast-bg rounded-full overflow-hidden">

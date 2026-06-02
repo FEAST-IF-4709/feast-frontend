@@ -36,7 +36,16 @@ const OrderPage = () => {
   const [receiptData, setReceiptData] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState('CASH');
   const [qrisModalData, setQrisModalData] = useState(null);
+  const [brandName, setBrandName] = useState('');
   const toast = useToast();
+
+  // Fetch brand name once on mount
+  useEffect(() => {
+    api.get('/brands/').then((res) => {
+      const data = res.data?.data ?? res.data ?? {};
+      setBrandName(data.name ?? '');
+    }).catch(() => {});
+  }, []);
 
   // Fetch outlet list for owners
   useEffect(() => {
@@ -209,20 +218,121 @@ const OrderPage = () => {
   const handleQrisClose = () => setQrisModalData(null);
 
   const handlePrint = () => {
-    const el = document.getElementById('receipt-print-area');
-    if (!el) return;
-    const win = window.open('', '_blank', 'width=420,height=680');
-    win.document.write(`<!DOCTYPE html><html><head><title>Receipt</title>
-      <style>
-        *{margin:0;padding:0;box-sizing:border-box}
-        body{font-family:'Segoe UI',sans-serif;background:#fff;padding:24px;font-size:12px;color:#1a1a1a}
-        .center{text-align:center}.bold{font-weight:700}.muted{color:#888}
-        .row{display:flex;justify-content:space-between;margin-bottom:6px}
-        .divider{border-top:1px dashed #ccc;margin:10px 0}
-        .total-row{display:flex;justify-content:space-between;margin-top:8px}
-        .grand{font-size:14px;font-weight:700;color:#d4581f}
-        .badge{display:inline-block;background:#fde8d8;color:#d4581f;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;margin-bottom:4px}
-      </style></head><body>${el.innerHTML}</body></html>`);
+    if (!receiptData) return;
+
+    const fmt = (val) => formatIDR(val);
+    const pmLabel = { CASH: 'Tunai', QRIS_MIDTRANS: 'QRIS', EDC: 'EDC' };
+
+    const itemRows = cart.map((item) => {
+      const ep = item.effectivePrice ?? item.price;
+      const hasDisc = item.promotion;
+      const discLabel = hasDisc
+        ? item.promotion.discount_type === 'percent'
+          ? ` (-${parseFloat(item.promotion.discount_value)}%)`
+          : ` (-${fmt(parseFloat(item.promotion.discount_value))})`
+        : '';
+      return `
+        <tr>
+          <td style="padding:4px 0;vertical-align:top">${item.quantity}x ${item.title}${discLabel}</td>
+          <td style="padding:4px 0;text-align:right;vertical-align:top;white-space:nowrap">${fmt(ep * item.quantity)}</td>
+        </tr>`;
+    }).join('');
+
+    const discountRow = discountTotal > 0
+      ? `<tr><td style="padding:2px 0;color:#888">Diskon</td><td style="padding:2px 0;text-align:right;color:#d4581f">- ${fmt(discountTotal)}</td></tr>`
+      : '';
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Receipt ${receiptData.orderNumber}</title>
+  <style>
+    @media print { @page { margin: 8mm; size: 80mm auto; } }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 12px;
+      color: #1a1a1a;
+      background: #fff;
+      width: 80mm;
+      padding: 8px 0;
+    }
+    .center { text-align: center; }
+    .brand { font-size: 16px; font-weight: 700; letter-spacing: 1px; }
+    .outlet { font-size: 11px; color: #d4581f; margin-top: 2px; }
+    .divider-solid { border-top: 1px solid #1a1a1a; margin: 8px 0; }
+    .divider-dash  { border-top: 1px dashed #999;  margin: 8px 0; }
+    table { width: 100%; border-collapse: collapse; }
+    td { font-size: 12px; }
+    .label { color: #555; }
+    .total-row td { font-size: 13px; font-weight: 700; padding-top: 6px; }
+    .grand td { font-size: 15px; font-weight: 700; }
+    .grand td:last-child { color: #d4581f; }
+    .footer { font-size: 10px; color: #888; margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <div class="center">
+    <div class="brand">${brandName || 'FEAST'}</div>
+    ${selectedOutletName ? `<div class="outlet">${selectedOutletName}</div>` : ''}
+  </div>
+
+  <div class="divider-solid"></div>
+
+  <table>
+    <tr>
+      <td class="label">Tanggal</td>
+      <td style="text-align:right">${formatDateTime(receiptData.placedAt)}</td>
+    </tr>
+    <tr>
+      <td class="label">No. Order</td>
+      <td style="text-align:right;font-weight:700">${receiptData.orderNumber}</td>
+    </tr>
+  </table>
+
+  <div class="divider-dash"></div>
+
+  <table>${itemRows}</table>
+
+  <div class="divider-dash"></div>
+
+  <table>
+    <tr>
+      <td class="label">Subtotal</td>
+      <td style="text-align:right">${fmt(subtotal)}</td>
+    </tr>
+    ${discountRow}
+    <tr>
+      <td class="label">PPN (10%)</td>
+      <td style="text-align:right">${fmt(tax)}</td>
+    </tr>
+  </table>
+
+  <div class="divider-solid"></div>
+
+  <table>
+    <tr class="grand">
+      <td>TOTAL</td>
+      <td style="text-align:right">${fmt(receiptData.grandTotal)}</td>
+    </tr>
+    <tr class="total-row">
+      <td class="label" style="font-weight:400;font-size:11px">Pembayaran</td>
+      <td style="text-align:right;font-size:11px">${pmLabel[receiptData.paymentMethod] || receiptData.paymentMethod}</td>
+    </tr>
+  </table>
+
+  <div class="divider-dash"></div>
+
+  <div class="center footer">
+    <p>Terima kasih atas kunjungan Anda!</p>
+    <p style="margin-top:4px">Powered by FEAST</p>
+  </div>
+</body>
+</html>`;
+
+    const win = window.open('', '_blank', 'width=400,height=600');
+    win.document.write(html);
     win.document.close();
     win.focus();
     win.print();
@@ -550,7 +660,7 @@ const OrderPage = () => {
                         <path d="M11 9H9V2H7v7H5V2H3v7c0 2.12 1.66 3.84 3.75 3.97V22h2.5v-9.03C11.34 12.84 13 11.12 13 9V2h-2v7zm5-3v8h2.5v8H21V2c-2.76 0-5 2.24-5 4z" />
                       </svg>
                     </div>
-                    <h2 className="text-lg font-bold font-jakarta text-feast-dark leading-tight">FEAST Kitchen</h2>
+                    <h2 className="text-lg font-bold font-jakarta text-feast-dark leading-tight">{brandName || 'FEAST'}</h2>
                     {selectedOutletName && (
                       <p className="text-xs text-feast-sunset font-semibold mt-0.5">{selectedOutletName}</p>
                     )}

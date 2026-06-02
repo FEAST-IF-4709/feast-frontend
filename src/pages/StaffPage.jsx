@@ -46,8 +46,8 @@ function StaffModal({ isOpen, onClose, editingItem, roles, outlets, onSuccess })
         full_name: editingItem.full_name ?? '',
         email: editingItem.email ?? '',
         password: '',
-        role: editingItem.role ?? '',
-        outlet: editingItem.outlet ?? '',
+        role: editingItem.role_id ?? '',
+        outlet: editingItem.outlet_id ?? '',
         is_active: editingItem.is_active ?? true,
       } : EMPTY_FORM);
     }
@@ -64,8 +64,8 @@ function StaffModal({ isOpen, onClose, editingItem, roles, outlets, onSuccess })
     const payload = {
       full_name: form.full_name.trim(),
       email: form.email.trim(),
-      role: form.role || undefined,
-      outlet: form.outlet || null,
+      role_id: form.role || undefined,
+      outlet_id: form.outlet || null,
       is_active: form.is_active,
     };
     if (!editingItem || form.password) {
@@ -233,11 +233,6 @@ export default function StaffPage() {
   const [editingItem, setEditingItem] = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
-  const getRoleName = (roleId) => roles.find((r) => String(r.id) === String(roleId))?.name ?? '-';
-  const getOutletName = (outletId) => outletId
-    ? outlets.find((o) => String(o.id) === String(outletId))?.name ?? '-'
-    : 'Semua Outlet';
-
   const openCreate = () => { setEditingItem(null); setModalOpen(true); };
   const openEdit = (item) => { setEditingItem(item); setModalOpen(true); };
   const closeModal = () => { setModalOpen(false); setEditingItem(null); };
@@ -322,7 +317,7 @@ export default function StaffPage() {
                         <div className="flex items-center gap-1.5">
                           <ShieldCheck size={13} className="text-feast-dark-muted" />
                           <span className="text-sm text-feast-dark-secondary font-vietnam">
-                            {getRoleName(member.role)}
+                            {member.role_name ?? '-'}
                           </span>
                         </div>
                       </td>
@@ -330,7 +325,7 @@ export default function StaffPage() {
                         <div className="flex items-center gap-1.5">
                           <Store size={13} className="text-feast-dark-muted" />
                           <span className="text-sm text-feast-dark-secondary font-vietnam">
-                            {getOutletName(member.outlet)}
+                            {member.outlet_name ?? 'Semua Outlet'}
                           </span>
                         </div>
                       </td>

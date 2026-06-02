@@ -185,12 +185,18 @@ const RolesPage = () => {
                       </div>
                     </div>
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => handleEditPermissions(role)} className="p-1.5 text-feast-dark-muted hover:text-feast-sunset rounded-lg hover:bg-feast-bg transition-colors">
+                      <button
+                        onClick={() => handleEditPermissions(role)}
+                        className="p-1.5 text-feast-dark-muted hover:text-feast-sunset rounded-lg hover:bg-feast-bg transition-colors"
+                        title="Edit permissions"
+                      >
                         <Pencil size={14} />
                       </button>
-                      <button onClick={() => handleDeleteRole(role.id)} className="p-1.5 text-feast-dark-muted hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors">
-                        <Trash2 size={14} />
-                      </button>
+                      {!role.is_system && (
+                        <button onClick={() => handleDeleteRole(role.id)} className="p-1.5 text-feast-dark-muted hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors" title="Delete role">
+                          <Trash2 size={14} />
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -222,7 +228,7 @@ const RolesPage = () => {
                       {role.name?.charAt(0)?.toUpperCase() || 'R'}
                     </div>
                     <span className="text-xs text-feast-dark-muted">
-                      {role.is_system_role ? 'System Role' : 'Custom Role'}
+                      {role.is_system ? 'System Role' : 'Custom Role'}
                     </span>
                   </div>
                 </motion.div>
