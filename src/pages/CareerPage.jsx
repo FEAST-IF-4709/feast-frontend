@@ -173,10 +173,15 @@ const CareerPage = () => {
                           ))}
                         </div>
                       </div>
-                      <button className="inline-flex items-center gap-2 px-6 py-2.5 border-2 border-feast-sunset text-feast-sunset text-sm font-semibold font-vietnam rounded-full hover:bg-feast-sunset hover:text-white transition-all duration-300 whitespace-nowrap group-hover:shadow-sm">
+                      <a
+                        href="https://www.linkedin.com"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 px-6 py-2.5 border-2 border-feast-sunset text-feast-sunset text-sm font-semibold font-vietnam rounded-full hover:bg-feast-sunset hover:text-white transition-all duration-300 whitespace-nowrap group-hover:shadow-sm"
+                      >
                         Apply Now
                         <ArrowRight size={14} className="group-hover:translate-x-0.5 transition-transform" />
-                      </button>
+                      </a>
                     </div>
                   ))}
                 </div>

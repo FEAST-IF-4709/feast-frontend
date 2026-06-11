@@ -21,7 +21,6 @@ const Footer = () => {
             <ul className="space-y-3">
               {[
                 { label: 'About Us', path: '/' },
-                { label: 'Our Brand', path: '/brand' },
                 { label: 'Contact Us', path: '/contact' },
                 { label: 'Career', path: '/career' },
               ].map((link) => (
@@ -44,17 +43,17 @@ const Footer = () => {
             <ul className="space-y-3">
               <li className="flex items-center gap-3 text-sm text-gray-300">
                 <Mail size={16} className="text-feast-sunset flex-shrink-0" />
-                concierge@feast.eco
+                cs.feast@gmail.com
               </li>
               <li className="flex items-center gap-3 text-sm text-gray-300">
                 <Phone size={16} className="text-feast-sunset flex-shrink-0" />
-                +1 (555) 867-5309
+                +62 851-7525-4003
               </li>
               <li className="flex items-start gap-3 text-sm text-gray-300">
                 <MapPin size={16} className="text-feast-sunset flex-shrink-0 mt-0.5" />
                 <span>
-                  100 Culinary Avenue, Suite 400<br />
-                  Saffron Tower, New York, NY 10011
+                  Jl. Telekomunikasi No. 1<br />
+                  Universitas Telkom, Bandung 40257
                 </span>
               </li>
             </ul>

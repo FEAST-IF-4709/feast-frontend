@@ -3,7 +3,6 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 
 // Landing Pages
 import LandingPage from './pages/LandingPage';
-import BrandPage from './pages/BrandPage';
 import ContactPage from './pages/ContactPage';
 import CareerPage from './pages/CareerPage';
 
@@ -33,7 +32,6 @@ const App = () => {
       <Routes>
         {/* Landing / Public Pages */}
         <Route path="/" element={<LandingPage />} />
-        <Route path="/brand" element={<BrandPage />} />
         <Route path="/contact" element={<ContactPage />} />
         <Route path="/career" element={<CareerPage />} />
 

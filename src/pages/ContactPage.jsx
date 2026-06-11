@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import LandingLayout from '../components/LandingLayout';
 import { motion } from 'framer-motion';
-import { Mail, Phone, MapPin, Send, ChevronDown } from 'lucide-react';
+import { Mail, Phone, MapPin, MessageCircle, ChevronDown } from 'lucide-react';
 import contactDecoImg from '../assets/Kinetic Kitchen Action.jpg';
 import officeImg from '../assets/Epicurean District Location.jpg';
 
@@ -25,7 +25,10 @@ const ContactPage = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    alert('Message sent! (Connect to backend to actually send)');
+    const text = encodeURIComponent(
+      `Halo FEAST!\n\nNama: ${formData.firstName} ${formData.lastName}\nEmail: ${formData.email}\nTopik: ${formData.topic}\n\nPesan:\n${formData.message}`
+    );
+    window.open(`https://wa.me/6285175254003?text=${text}`, '_blank');
   };
 
   return (
@@ -163,8 +166,8 @@ const ContactPage = () => {
                     type="submit"
                     className="w-full flex items-center justify-center gap-2 px-8 py-4 bg-feast-sunset text-white text-sm font-semibold font-vietnam rounded-full hover:bg-feast-sunset-dark transition-all duration-300 hover:shadow-xl hover:shadow-feast-sunset/20"
                   >
-                    Send Message
-                    <Send size={16} />
+                    Kirim via WhatsApp
+                    <MessageCircle size={16} />
                   </motion.button>
                 </form>
               </div>
@@ -178,12 +181,12 @@ const ContactPage = () => {
                   Headquarters
                 </h2>
                 <p className="text-feast-sunset font-semibold text-sm uppercase tracking-[0.15em] font-vietnam mb-6">
-                  The Epicurean District
+                  Universitas Telkom
                 </p>
                 <div className="text-feast-dark-secondary font-vietnam text-sm leading-relaxed mb-6">
-                  100 Culinary Avenue, Suite 400<br />
-                  Saffron Tower<br />
-                  New York, NY 10011
+                  Jl. Telekomunikasi No. 1<br />
+                  Terusan Buah Batu, Bandung<br />
+                  Jawa Barat 40257
                 </div>
 
                 {/* Divider — using tonal shift, no hard line */}
@@ -197,13 +200,13 @@ const ContactPage = () => {
                     <div className="w-9 h-9 bg-feast-surface-lowest rounded-xl flex items-center justify-center flex-shrink-0">
                       <Mail size={16} className="text-feast-sunset" />
                     </div>
-                    <span className="text-feast-dark-secondary font-vietnam text-sm">concierge@feast.eco</span>
+                    <span className="text-feast-dark-secondary font-vietnam text-sm">cs.feast@gmail.com</span>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 bg-feast-surface-lowest rounded-xl flex items-center justify-center flex-shrink-0">
                       <Phone size={16} className="text-feast-sunset" />
                     </div>
-                    <span className="text-feast-dark-secondary font-vietnam text-sm">+1 (555) 867-5309</span>
+                    <span className="text-feast-dark-secondary font-vietnam text-sm">+62 851-7525-4003</span>
                   </div>
                 </div>
               </div>

@@ -13,7 +13,7 @@ export default function QRPaymentModal({ order, qris, isOpen, onClose, onSettled
   const [currentQris, setCurrentQris] = useState(qris);
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [isRegenerating, setIsRegenerating] = useState(false);
-  const [imgError, setImgError] = useState(false);
+  // qr_image_url is stored for simulator use only — display always uses qr_string via QRCodeSVG
   const settledRef = useRef(false);
   const countdownRef = useRef(null);
   const toast = useToast();
@@ -22,7 +22,6 @@ export default function QRPaymentModal({ order, qris, isOpen, onClose, onSettled
   useEffect(() => {
     if (qris) {
       setCurrentQris(qris);
-      setImgError(false);
       setStatus('PENDING');
       settledRef.current = false;
     }
@@ -100,7 +99,6 @@ export default function QRPaymentModal({ order, qris, isOpen, onClose, onSettled
       const res = await paymentsApi.initiateQris(order.id);
       const newQris = res.data?.data ?? res.data;
       settledRef.current = false;
-      setImgError(false);
       setCurrentQris(newQris);
       setStatus('PENDING');
     } catch {
@@ -211,21 +209,12 @@ export default function QRPaymentModal({ order, qris, isOpen, onClose, onSettled
 
                 <div className="bg-feast-bg rounded-2xl p-6 mb-6 flex justify-center">
                   <div className="bg-white rounded-xl p-4 inline-block">
-                    {currentQris?.qr_image_url && !imgError ? (
-                      <img
-                        src={currentQris.qr_image_url}
-                        alt="QRIS Code"
-                        className="w-56 h-56 object-contain"
-                        onError={() => setImgError(true)}
-                      />
-                    ) : (
-                      <QRCodeSVG
-                        value={currentQris?.qr_string || ''}
-                        size={224}
-                        level="H"
-                        includeMargin={false}
-                      />
-                    )}
+                    <QRCodeSVG
+                      value={currentQris?.qr_string || ''}
+                      size={224}
+                      level="H"
+                      includeMargin={false}
+                    />
                   </div>
                 </div>
 

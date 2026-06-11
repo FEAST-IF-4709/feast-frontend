@@ -1,12 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Loader2, Upload } from 'lucide-react';
+import { Loader2, Upload, Pencil, Check } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { brandsApi } from '../api/brands';
 import { handleApiError } from '../api/errorHandler';
 import { useToast } from '../hooks/useToast';
-import { usePermission } from '../hooks/usePermission';
 import brandHeroImg from '../assets/Dynamic food plating.jpg';
-import locationImg from '../assets/Epicurean District Location.jpg';
 
 const DAYS = [
   { key: 'mon', label: 'Senin' },
@@ -44,9 +42,10 @@ const RestaurantProfilePage = () => {
   const [hasChanges, setHasChanges] = useState(false);
   const [logoFile, setLogoFile] = useState(null);
   const [logoPreview, setLogoPreview] = useState(null);
+  const [isEditingHours, setIsEditingHours] = useState(false);
+  const [isEditingPin, setIsEditingPin] = useState(false);
   const logoInputRef = useRef(null);
   const toast = useToast();
-  const canUpdate = usePermission('brand.update');
 
   useEffect(() => {
     const fetchBrand = async () => {
@@ -90,17 +89,22 @@ const RestaurantProfilePage = () => {
         formData.append('phone', brandData.phone ?? '');
         formData.append('location_address', brandData.location_address ?? '');
         formData.append('operating_hours', JSON.stringify(brandData.operating_hours ?? {}));
+        formData.append('is_accepting_orders', brandData.is_accepting_orders ? 'true' : 'false');
+        if (brandData.latitude != null && brandData.latitude !== '') formData.append('latitude', brandData.latitude);
+        if (brandData.longitude != null && brandData.longitude !== '') formData.append('longitude', brandData.longitude);
         formData.append('logo', logoFile);
         res = await brandsApi.updateMeWithImage(formData);
       } else {
         const payload = {
-          name: brandData.name,
           description: brandData.description,
           cuisine_type: brandData.cuisine_type,
           phone: brandData.phone,
           logo_url: brandData.logo_url,
           location_address: brandData.location_address,
           operating_hours: brandData.operating_hours,
+          is_accepting_orders: brandData.is_accepting_orders,
+          latitude: brandData.latitude || null,
+          longitude: brandData.longitude || null,
         };
         res = await brandsApi.updateMe(payload);
       }
@@ -127,6 +131,8 @@ const RestaurantProfilePage = () => {
   const handleDiscard = () => {
     setBrandData(originalData);
     setHasChanges(false);
+    setLogoFile(null);
+    setLogoPreview(null);
     toast.info('Perubahan dibatalkan');
   };
 
@@ -155,16 +161,14 @@ const RestaurantProfilePage = () => {
           >
             Discard
           </button>
-          {canUpdate && (
-            <button
-              onClick={handleSave}
-              disabled={!hasChanges || isSaving}
-              className="flex items-center gap-2 px-5 py-2.5 bg-feast-sunset text-white font-semibold text-sm rounded-xl hover:bg-feast-sunset-dark transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {isSaving && <Loader2 className="animate-spin w-4 h-4" />}
-              Save Changes
-            </button>
-          )}
+          <button
+            onClick={handleSave}
+            disabled={!hasChanges || isSaving}
+            className="flex items-center gap-2 px-5 py-2.5 bg-feast-sunset text-white font-semibold text-sm rounded-xl hover:bg-feast-sunset-dark transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {isSaving && <Loader2 className="animate-spin w-4 h-4" />}
+            Save Changes
+          </button>
         </div>
       </header>
 
@@ -185,10 +189,12 @@ const RestaurantProfilePage = () => {
                 <input
                   type="text"
                   value={brandData?.name || ''}
-                  onChange={(e) => updateField('name', e.target.value)}
-                  disabled={!canUpdate}
-                  className="w-full bg-feast-surface-low rounded-xl px-4 py-3 text-sm text-feast-dark font-vietnam focus:outline-none focus:ring-2 focus:ring-feast-sunset/30 disabled:opacity-60 disabled:cursor-not-allowed"
+                  disabled
+                  className="w-full bg-feast-surface-low rounded-xl px-4 py-3 text-sm text-feast-dark font-vietnam opacity-60 cursor-not-allowed"
                 />
+                <p className="text-[10px] text-feast-dark-muted mt-1">
+                  Nama restoran tidak dapat diubah. Hubungi support jika perlu perubahan.
+                </p>
               </div>
               <div>
                 <label className="block text-[10px] font-semibold uppercase tracking-[0.15em] text-feast-dark-muted mb-2">
@@ -197,9 +203,8 @@ const RestaurantProfilePage = () => {
                 <textarea
                   value={brandData?.description || ''}
                   onChange={(e) => updateField('description', e.target.value)}
-                  disabled={!canUpdate}
                   rows={3}
-                  className="w-full bg-feast-surface-low rounded-xl px-4 py-3 text-sm text-feast-dark font-vietnam focus:outline-none focus:ring-2 focus:ring-feast-sunset/30 resize-none disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="w-full bg-feast-surface-low rounded-xl px-4 py-3 text-sm text-feast-dark font-vietnam focus:outline-none focus:ring-2 focus:ring-feast-sunset/30 resize-none"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -211,9 +216,8 @@ const RestaurantProfilePage = () => {
                     type="text"
                     value={brandData?.cuisine_type || ''}
                     onChange={(e) => updateField('cuisine_type', e.target.value)}
-                    disabled={!canUpdate}
                     placeholder="e.g. Modern Fusion"
-                    className="w-full bg-feast-surface-low rounded-xl px-4 py-3 text-sm text-feast-dark font-vietnam focus:outline-none focus:ring-2 focus:ring-feast-sunset/30 disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="w-full bg-feast-surface-low rounded-xl px-4 py-3 text-sm text-feast-dark font-vietnam focus:outline-none focus:ring-2 focus:ring-feast-sunset/30"
                   />
                 </div>
                 <div>
@@ -224,8 +228,7 @@ const RestaurantProfilePage = () => {
                     type="tel"
                     value={brandData?.phone || ''}
                     onChange={(e) => updateField('phone', e.target.value)}
-                    disabled={!canUpdate}
-                    className="w-full bg-feast-surface-low rounded-xl px-4 py-3 text-sm text-feast-dark font-vietnam focus:outline-none focus:ring-2 focus:ring-feast-sunset/30 disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="w-full bg-feast-surface-low rounded-xl px-4 py-3 text-sm text-feast-dark font-vietnam focus:outline-none focus:ring-2 focus:ring-feast-sunset/30"
                   />
                 </div>
               </div>
@@ -237,7 +240,7 @@ const RestaurantProfilePage = () => {
             <h3 className="text-lg font-bold font-jakarta text-feast-dark mb-6">Brand Imagery</h3>
             <div
               className="h-48 bg-feast-surface-low rounded-2xl overflow-hidden w-full relative group cursor-pointer mb-4"
-              onClick={() => canUpdate && logoInputRef.current?.click()}
+              onClick={() => logoInputRef.current?.click()}
             >
               <img
                 src={logoPreview || brandData?.logo_url || brandHeroImg}
@@ -245,14 +248,12 @@ const RestaurantProfilePage = () => {
                 onError={(e) => { e.target.src = brandHeroImg; }}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
               />
-              {canUpdate && (
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <div className="flex items-center gap-2 bg-white/90 rounded-xl px-4 py-2">
-                    <Upload size={14} className="text-feast-dark" />
-                    <span className="text-xs font-semibold font-vietnam text-feast-dark">Upload Gambar</span>
-                  </div>
+              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                <div className="flex items-center gap-2 bg-white/90 rounded-xl px-4 py-2">
+                  <Upload size={14} className="text-feast-dark" />
+                  <span className="text-xs font-semibold font-vietnam text-feast-dark">Upload Gambar</span>
                 </div>
-              )}
+              </div>
             </div>
             <input
               ref={logoInputRef}
@@ -281,9 +282,8 @@ const RestaurantProfilePage = () => {
                   type="url"
                   value={brandData?.logo_url || ''}
                   onChange={(e) => updateField('logo_url', e.target.value)}
-                  disabled={!canUpdate}
                   placeholder="https://..."
-                  className="w-full bg-feast-surface-low rounded-xl px-4 py-3 text-sm text-feast-dark font-vietnam focus:outline-none focus:ring-2 focus:ring-feast-sunset/30 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="w-full bg-feast-surface-low rounded-xl px-4 py-3 text-sm text-feast-dark font-vietnam focus:outline-none focus:ring-2 focus:ring-feast-sunset/30"
                 />
               </div>
             )}
@@ -291,49 +291,92 @@ const RestaurantProfilePage = () => {
 
           {/* Operating Hours */}
           <motion.section variants={itemVariants} className="bg-white rounded-3xl p-8 shadow-sm">
-            <h3 className="text-lg font-bold font-jakarta text-feast-dark mb-6">Jam Operasional</h3>
-            <div className="divide-y divide-feast-bg">
-              {DAYS.map(day => (
-                <div key={day.key} className="flex items-center gap-3 py-3">
-                  <span className="w-20 font-vietnam text-sm text-feast-dark">{day.label}</span>
-                  <input
-                    type="time"
-                    value={brandData?.operating_hours?.[day.key]?.open ?? ''}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setBrandData(prev => ({
-                        ...prev,
-                        operating_hours: {
-                          ...prev.operating_hours,
-                          [day.key]: { ...prev.operating_hours?.[day.key], open: val },
-                        },
-                      }));
-                      setHasChanges(true);
-                    }}
-                    disabled={!canUpdate}
-                    className="bg-feast-surface-low rounded-xl px-3 py-2 font-vietnam text-sm text-feast-dark focus:outline-none focus:ring-2 focus:ring-feast-sunset/30 disabled:opacity-60 disabled:cursor-not-allowed"
-                  />
-                  <span className="font-vietnam text-feast-dark-secondary">—</span>
-                  <input
-                    type="time"
-                    value={brandData?.operating_hours?.[day.key]?.close ?? ''}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setBrandData(prev => ({
-                        ...prev,
-                        operating_hours: {
-                          ...prev.operating_hours,
-                          [day.key]: { ...prev.operating_hours?.[day.key], close: val },
-                        },
-                      }));
-                      setHasChanges(true);
-                    }}
-                    disabled={!canUpdate}
-                    className="bg-feast-surface-low rounded-xl px-3 py-2 font-vietnam text-sm text-feast-dark focus:outline-none focus:ring-2 focus:ring-feast-sunset/30 disabled:opacity-60 disabled:cursor-not-allowed"
-                  />
-                </div>
-              ))}
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-bold font-jakarta text-feast-dark">Jam Operasional</h3>
+              <button
+                type="button"
+                onClick={() => setIsEditingHours(prev => !prev)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold font-vietnam transition-colors ${
+                  isEditingHours
+                    ? 'bg-feast-sunset text-white'
+                    : 'bg-feast-surface-low text-feast-dark hover:bg-gray-200'
+                }`}
+              >
+                {isEditingHours
+                  ? <><Check size={13} /> Selesai</>
+                  : <><Pencil size={13} /> Edit Jam</>
+                }
+              </button>
             </div>
+            <div className="divide-y divide-feast-bg">
+              {DAYS.map(day => {
+                const open = brandData?.operating_hours?.[day.key]?.open ?? '';
+                const close = brandData?.operating_hours?.[day.key]?.close ?? '';
+                return (
+                  <div key={day.key} className="flex items-center gap-3 py-3">
+                    <span className="w-20 font-vietnam text-sm text-feast-dark shrink-0">{day.label}</span>
+                    {isEditingHours ? (
+                      <>
+                        <input
+                          type="time"
+                          value={open}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setBrandData(prev => ({
+                              ...prev,
+                              operating_hours: {
+                                ...prev.operating_hours,
+                                [day.key]: { ...prev.operating_hours?.[day.key], open: val },
+                              },
+                            }));
+                            setHasChanges(true);
+                          }}
+                          className="bg-feast-surface-low border border-feast-sunset/30 rounded-xl px-3 py-2 font-vietnam text-sm text-feast-dark focus:outline-none focus:ring-2 focus:ring-feast-sunset/40 focus:border-feast-sunset transition-colors"
+                        />
+                        <span className="font-vietnam text-feast-dark-secondary">—</span>
+                        <input
+                          type="time"
+                          value={close}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setBrandData(prev => ({
+                              ...prev,
+                              operating_hours: {
+                                ...prev.operating_hours,
+                                [day.key]: { ...prev.operating_hours?.[day.key], close: val },
+                              },
+                            }));
+                            setHasChanges(true);
+                          }}
+                          className="bg-feast-surface-low border border-feast-sunset/30 rounded-xl px-3 py-2 font-vietnam text-sm text-feast-dark focus:outline-none focus:ring-2 focus:ring-feast-sunset/40 focus:border-feast-sunset transition-colors"
+                        />
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingHours(true)}
+                        className="flex items-center gap-2 group"
+                        title="Klik untuk edit jam operasional"
+                      >
+                        <span className="font-vietnam text-sm text-feast-dark group-hover:text-feast-sunset transition-colors">
+                          {open || '—'}
+                        </span>
+                        <span className="text-feast-dark-secondary">—</span>
+                        <span className="font-vietnam text-sm text-feast-dark group-hover:text-feast-sunset transition-colors">
+                          {close || '—'}
+                        </span>
+                        <Pencil size={11} className="text-feast-dark-muted opacity-0 group-hover:opacity-100 transition-opacity ml-1" />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            {!isEditingHours && (
+              <p className="text-[10px] text-feast-dark-muted mt-4">
+                Klik jam untuk mengedit, atau tekan tombol <strong>Edit Jam</strong> di atas.
+              </p>
+            )}
           </motion.section>
         </div>
 
@@ -342,47 +385,94 @@ const RestaurantProfilePage = () => {
           {/* Operations */}
           <motion.section variants={itemVariants} className="bg-white rounded-3xl p-6 shadow-sm">
             <h3 className="text-base font-bold font-jakarta text-feast-dark mb-5">Operations</h3>
-            <div className="space-y-4">
-              <div className="bg-white border border-feast-bg rounded-2xl p-4 flex justify-between items-center shadow-sm">
-                <div>
-                  <p className="text-sm font-semibold text-feast-dark">Accepting Orders</p>
-                  <p className="text-[10px] text-feast-dark-muted mt-0.5">Currently taking new requests</p>
-                </div>
-                <div className="w-10 h-6 bg-feast-sunset rounded-full relative cursor-pointer">
-                  <div className="w-4 h-4 bg-white rounded-full absolute top-1 right-1 shadow-sm" />
-                </div>
+            <div
+              className={`rounded-2xl p-5 flex items-center justify-between border transition-colors duration-300 ${
+                brandData?.is_accepting_orders
+                  ? 'bg-green-50 border-green-200'
+                  : 'bg-red-50 border-red-200'
+              }`}
+            >
+              <div>
+                <p className={`text-sm font-bold font-jakarta transition-colors ${brandData?.is_accepting_orders ? 'text-green-700' : 'text-red-600'}`}>
+                  {brandData?.is_accepting_orders ? 'Buka' : 'Tutup'}
+                </p>
+                <p className="text-[10px] text-feast-dark-muted mt-0.5">
+                  {brandData?.is_accepting_orders
+                    ? 'Restoran sedang menerima pesanan'
+                    : 'Tidak ada pembayaran baru yang masuk'}
+                </p>
               </div>
-              <div className="flex justify-between items-center px-2">
-                <span className="text-sm font-medium text-feast-dark-secondary">Auto-accept Orders</span>
-                <div className="w-10 h-6 bg-feast-surface-low rounded-full relative cursor-pointer">
-                  <div className="w-4 h-4 bg-white rounded-full absolute top-1 left-1 shadow-sm" />
-                </div>
-              </div>
-              <div className="flex justify-between items-center px-2">
-                <span className="text-sm font-medium text-feast-dark-secondary">Busy Mode</span>
-                <div className="w-10 h-6 bg-feast-surface-low rounded-full relative cursor-pointer">
-                  <div className="w-4 h-4 bg-white rounded-full absolute top-1 left-1 shadow-sm" />
-                </div>
-              </div>
+              <button
+                type="button"
+                onClick={() => updateField('is_accepting_orders', !brandData?.is_accepting_orders)}
+                className={`w-12 h-7 rounded-full relative transition-colors duration-300 ${brandData?.is_accepting_orders ? 'bg-green-500' : 'bg-red-400'}`}
+              >
+                <div className={`w-5 h-5 bg-white rounded-full absolute top-1 shadow-sm transition-all duration-300 ${brandData?.is_accepting_orders ? 'right-1' : 'left-1'}`} />
+              </button>
             </div>
           </motion.section>
 
           {/* Location */}
           <motion.section variants={itemVariants} className="bg-white rounded-3xl p-6 shadow-sm">
-            <h3 className="text-base font-bold font-jakarta text-feast-dark mb-3">Location</h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-base font-bold font-jakarta text-feast-dark">Location</h3>
+              <button
+                type="button"
+                onClick={() => setIsEditingPin(prev => !prev)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-semibold font-vietnam transition-colors ${
+                  isEditingPin ? 'bg-feast-sunset text-white' : 'bg-feast-surface-low text-feast-dark hover:bg-gray-200'
+                }`}
+              >
+                {isEditingPin ? <><Check size={11} /> Selesai</> : <><Pencil size={11} /> Edit Pin</>}
+              </button>
+            </div>
             <textarea
               value={brandData?.location_address || ''}
               onChange={(e) => updateField('location_address', e.target.value)}
-              disabled={!canUpdate}
               rows={3}
               placeholder="Alamat lengkap..."
-              className="w-full bg-feast-surface-low rounded-xl px-4 py-3 text-xs text-feast-dark font-vietnam focus:outline-none focus:ring-2 focus:ring-feast-sunset/30 resize-none mb-4 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="w-full bg-feast-surface-low rounded-xl px-4 py-3 text-xs text-feast-dark font-vietnam focus:outline-none focus:ring-2 focus:ring-feast-sunset/30 resize-none mb-3"
             />
-            <div className="h-32 bg-feast-surface-low rounded-xl w-full relative overflow-hidden group">
-              <img src={locationImg} alt="Map" className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity" />
-              <button className="absolute bottom-2 right-2 bg-white text-feast-sunset text-[10px] font-bold px-3 py-1.5 rounded-lg shadow-sm hover:bg-gray-50 transition-colors">
-                Edit Pin
-              </button>
+            {isEditingPin ? (
+              <div className="space-y-2 mb-3">
+                <div>
+                  <label className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-feast-dark-muted mb-1">Latitude</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={brandData?.latitude ?? ''}
+                    onChange={(e) => updateField('latitude', e.target.value)}
+                    placeholder="-6.200000"
+                    className="w-full bg-feast-surface-low border border-feast-sunset/30 rounded-xl px-3 py-2 text-xs text-feast-dark font-vietnam focus:outline-none focus:ring-2 focus:ring-feast-sunset/40"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-feast-dark-muted mb-1">Longitude</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={brandData?.longitude ?? ''}
+                    onChange={(e) => updateField('longitude', e.target.value)}
+                    placeholder="106.816666"
+                    className="w-full bg-feast-surface-low border border-feast-sunset/30 rounded-xl px-3 py-2 text-xs text-feast-dark font-vietnam focus:outline-none focus:ring-2 focus:ring-feast-sunset/40"
+                  />
+                </div>
+              </div>
+            ) : null}
+            <div className="h-32 bg-feast-surface-low rounded-xl w-full relative overflow-hidden">
+              {brandData?.latitude && brandData?.longitude ? (
+                <iframe
+                  title="Lokasi Restoran"
+                  src={`https://www.openstreetmap.org/export/embed.html?bbox=${parseFloat(brandData.longitude)-0.005},${parseFloat(brandData.latitude)-0.005},${parseFloat(brandData.longitude)+0.005},${parseFloat(brandData.latitude)+0.005}&layer=mapnik&marker=${brandData.latitude},${brandData.longitude}`}
+                  className="w-full h-full border-0"
+                  loading="lazy"
+                />
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center text-feast-dark-muted gap-1">
+                  <Pencil size={16} className="opacity-40" />
+                  <span className="text-[10px] font-vietnam opacity-60">Belum ada koordinat</span>
+                </div>
+              )}
             </div>
           </motion.section>
         </div>
