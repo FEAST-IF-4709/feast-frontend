@@ -39,10 +39,15 @@ export function decodeToken(token) {
   }
 }
 
-/** @returns {"EMPLOYEE"|"CUSTOMER"|null} */
+/** @returns {"EMPLOYEE"|"CUSTOMER"|"SUPERADMIN"|null} */
 export function getActorType() {
   const payload = decodeToken(getAccessToken());
   return payload?.actor_type ?? null;
+}
+
+/** @returns {boolean} */
+export function isSuperAdmin() {
+  return getActorType() === 'SUPERADMIN';
 }
 
 /** @returns {string|null} */

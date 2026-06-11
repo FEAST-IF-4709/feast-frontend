@@ -14,11 +14,19 @@ import {
   Store,
   Megaphone,
   LogOut,
+  Layers,
 } from 'lucide-react';
 import api from '../api/client';
-import { clearTokens, getRefreshToken, hasPermission } from '../api/auth';
+import { clearTokens, getRefreshToken, hasPermission, isSuperAdmin } from '../api/auth';
 
 const SIDEBAR_GROUPS = [
+  {
+    label: null,
+    superadminOnly: true,
+    items: [
+      { label: 'Brands', path: '/brands', icon: Layers, permission: null, superadminOnly: true },
+    ],
+  },
   {
     label: null,
     items: [
@@ -52,11 +60,14 @@ const Sidebar = () => {
   const navigate = useNavigate();
 
   const visibleGroups = useMemo(() => {
+    const superAdmin = isSuperAdmin();
     return SIDEBAR_GROUPS.map((group) => ({
       ...group,
-      items: group.items.filter(
-        (item) => item.permission === null || hasPermission(item.permission)
-      ),
+      items: group.items.filter((item) => {
+        if (superAdmin) return !!item.superadminOnly;
+        if (item.superadminOnly) return false;
+        return item.permission === null || hasPermission(item.permission);
+      }),
     })).filter((group) => group.items.length > 0);
   // re-evaluate when route changes (permissions are in JWT, stable per session)
   }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps

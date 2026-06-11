@@ -25,6 +25,7 @@ const OutletsPage = lazy(() => import('./pages/OutletsPage'));
 const StaffPage = lazy(() => import('./pages/StaffPage'));
 const MenuPage = lazy(() => import('./pages/MenuPage'));
 const OrdersPage = lazy(() => import('./pages/OrdersPage'));
+const BrandsAdminPage = lazy(() => import('./pages/BrandsAdminPage'));
 
 const App = () => {
   return (
@@ -40,6 +41,9 @@ const App = () => {
 
         {/* Admin Pages (protected + wrapped with Sidebar) */}
         <Route element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
+          <Route path="/brands" element={
+            <Suspense fallback={<LoadingSpinner fullPage />}><BrandsAdminPage /></Suspense>
+          } />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/roles" element={
             <Suspense fallback={<LoadingSpinner fullPage />}><RolesPage /></Suspense>

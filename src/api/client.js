@@ -28,7 +28,9 @@ api.interceptors.response.use(
     const originalRequest = error.config;
 
     // If 401 and we haven't retried yet
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // Skip interceptor for auth endpoints — let the caller handle credentials errors
+    const isAuthEndpoint = originalRequest.url?.includes('/auth/');
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
       originalRequest._retry = true;
 
       const refreshToken = getRefreshToken();

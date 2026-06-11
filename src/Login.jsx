@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import api from './api/client';
-import { saveTokens } from './api/auth';
+import { saveTokens, decodeToken } from './api/auth';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -19,16 +19,25 @@ const Login = () => {
     setError('');
     setIsLoading(true);
 
+    const credentials = { email, password };
+
     try {
-      const { data } = await api.post('/auth/staff/login/', { email, password });
+      // Try staff login first; fallback to superadmin if credentials not found
+      let data;
+      try {
+        const res = await api.post('/auth/staff/login/', credentials);
+        data = res.data;
+      } catch (staffErr) {
+        if (staffErr.response?.status !== 401) throw staffErr;
+        // Staff 401 → attempt superadmin login
+        const res = await api.post('/auth/superadmin/login/', credentials);
+        data = res.data;
+      }
 
-      // Save JWT tokens
-      saveTokens({
-        access: data.data.access,
-        refresh: data.data.refresh,
-      });
+      saveTokens({ access: data.data.access, refresh: data.data.refresh });
 
-      navigate('/dashboard');
+      const tokenPayload = decodeToken(data.data.access);
+      navigate(tokenPayload?.actor_type === 'SUPERADMIN' ? '/brands' : '/dashboard');
     } catch (err) {
       const status = err.response?.status;
       const apiData = err.response?.data;
@@ -36,7 +45,6 @@ const Login = () => {
       if (status === 401) {
         setError('Email atau password salah. Silakan coba lagi.');
       } else if (status === 400 && apiData?.errors) {
-        // Show first validation error
         const firstError = apiData.errors[0];
         setError(firstError?.detail || 'Input tidak valid.');
       } else if (status === 429) {
