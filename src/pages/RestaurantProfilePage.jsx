@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Loader2, Upload, Pencil, Check } from 'lucide-react';
+import { Loader2, Upload, Pencil, Check, MapPin, ExternalLink, Percent } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { brandsApi } from '../api/brands';
 import { handleApiError } from '../api/errorHandler';
@@ -42,9 +42,12 @@ const RestaurantProfilePage = () => {
   const [hasChanges, setHasChanges] = useState(false);
   const [logoFile, setLogoFile] = useState(null);
   const [logoPreview, setLogoPreview] = useState(null);
+  const [bannerFile, setBannerFile] = useState(null);
+  const [bannerPreview, setBannerPreview] = useState(null);
   const [isEditingHours, setIsEditingHours] = useState(false);
   const [isEditingPin, setIsEditingPin] = useState(false);
   const logoInputRef = useRef(null);
+  const bannerInputRef = useRef(null);
   const toast = useToast();
 
   useEffect(() => {
@@ -77,11 +80,19 @@ const RestaurantProfilePage = () => {
     setHasChanges(true);
   };
 
+  const handleBannerChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBannerFile(file);
+    setBannerPreview(URL.createObjectURL(file));
+    setHasChanges(true);
+  };
+
   const handleSave = async () => {
     setIsSaving(true);
     try {
       let res;
-      if (logoFile) {
+      if (logoFile || bannerFile) {
         const formData = new FormData();
         formData.append('name', brandData.name ?? '');
         formData.append('description', brandData.description ?? '');
@@ -90,9 +101,11 @@ const RestaurantProfilePage = () => {
         formData.append('location_address', brandData.location_address ?? '');
         formData.append('operating_hours', JSON.stringify(brandData.operating_hours ?? {}));
         formData.append('is_accepting_orders', brandData.is_accepting_orders ? 'true' : 'false');
+        formData.append('tax_rate', brandData.tax_rate ?? 0);
         if (brandData.latitude != null && brandData.latitude !== '') formData.append('latitude', brandData.latitude);
         if (brandData.longitude != null && brandData.longitude !== '') formData.append('longitude', brandData.longitude);
-        formData.append('logo', logoFile);
+        if (logoFile) formData.append('logo', logoFile);
+        if (bannerFile) formData.append('banner', bannerFile);
         res = await brandsApi.updateMeWithImage(formData);
       } else {
         const payload = {
@@ -100,9 +113,11 @@ const RestaurantProfilePage = () => {
           cuisine_type: brandData.cuisine_type,
           phone: brandData.phone,
           logo_url: brandData.logo_url,
+          banner_url: brandData.banner_url,
           location_address: brandData.location_address,
           operating_hours: brandData.operating_hours,
           is_accepting_orders: brandData.is_accepting_orders,
+          tax_rate: brandData.tax_rate ?? 0,
           latitude: brandData.latitude || null,
           longitude: brandData.longitude || null,
         };
@@ -115,6 +130,8 @@ const RestaurantProfilePage = () => {
       setHasChanges(false);
       setLogoFile(null);
       setLogoPreview(null);
+      setBannerFile(null);
+      setBannerPreview(null);
       toast.success('Profil restoran berhasil diperbarui');
     } catch (err) {
       const fieldErrors = err.response?.data?.errors;
@@ -133,6 +150,8 @@ const RestaurantProfilePage = () => {
     setHasChanges(false);
     setLogoFile(null);
     setLogoPreview(null);
+    setBannerFile(null);
+    setBannerPreview(null);
     toast.info('Perubahan dibatalkan');
   };
 
@@ -238,55 +257,116 @@ const RestaurantProfilePage = () => {
           {/* Brand Imagery */}
           <motion.section variants={itemVariants} className="bg-white rounded-3xl p-8 shadow-sm">
             <h3 className="text-lg font-bold font-jakarta text-feast-dark mb-6">Brand Imagery</h3>
-            <div
-              className="h-48 bg-feast-surface-low rounded-2xl overflow-hidden w-full relative group cursor-pointer mb-4"
-              onClick={() => logoInputRef.current?.click()}
-            >
-              <img
-                src={logoPreview || brandData?.logo_url || brandHeroImg}
-                alt="Brand"
-                onError={(e) => { e.target.src = brandHeroImg; }}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-              />
-              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                <div className="flex items-center gap-2 bg-white/90 rounded-xl px-4 py-2">
-                  <Upload size={14} className="text-feast-dark" />
-                  <span className="text-xs font-semibold font-vietnam text-feast-dark">Upload Gambar</span>
+
+            {/* Banner */}
+            <div className="mb-6">
+              <label className="block text-[10px] font-semibold uppercase tracking-[0.15em] text-feast-dark-muted mb-2">
+                Banner
+              </label>
+              <div
+                className="h-40 bg-feast-surface-low rounded-2xl overflow-hidden w-full relative group cursor-pointer"
+                onClick={() => bannerInputRef.current?.click()}
+              >
+                {bannerPreview || brandData?.banner_url ? (
+                  <img
+                    src={bannerPreview || brandData?.banner_url}
+                    alt="Banner"
+                    onError={(e) => { e.target.src = brandHeroImg; }}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-feast-dark-muted">
+                    <Upload size={20} className="opacity-40" />
+                    <span className="text-[11px] font-vietnam opacity-60">Upload banner (16:9 disarankan)</span>
+                  </div>
+                )}
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <div className="flex items-center gap-2 bg-white/90 rounded-xl px-4 py-2">
+                    <Upload size={14} className="text-feast-dark" />
+                    <span className="text-xs font-semibold font-vietnam text-feast-dark">Upload Banner</span>
+                  </div>
                 </div>
               </div>
+              <input
+                ref={bannerInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleBannerChange}
+              />
+              {bannerFile && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-feast-sunset/5 rounded-xl mt-2">
+                  <span className="text-xs font-vietnam text-feast-sunset flex-1 truncate">{bannerFile.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => { setBannerFile(null); setBannerPreview(null); }}
+                    className="text-xs text-feast-dark-muted hover:text-red-500 font-vietnam"
+                  >
+                    Batal
+                  </button>
+                </div>
+              )}
             </div>
-            <input
-              ref={logoInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handleLogoChange}
-            />
-            {logoFile ? (
-              <div className="flex items-center gap-2 px-3 py-2 bg-feast-sunset/5 rounded-xl">
-                <span className="text-xs font-vietnam text-feast-sunset flex-1 truncate">{logoFile.name}</span>
-                <button
-                  type="button"
-                  onClick={() => { setLogoFile(null); setLogoPreview(null); }}
-                  className="text-xs text-feast-dark-muted hover:text-red-500 font-vietnam"
+
+            {/* Logo */}
+            <div>
+              <label className="block text-[10px] font-semibold uppercase tracking-[0.15em] text-feast-dark-muted mb-2">
+                Logo
+              </label>
+              <div className="flex items-start gap-4">
+                <div
+                  className="w-24 h-24 bg-feast-surface-low rounded-2xl overflow-hidden relative group cursor-pointer shrink-0"
+                  onClick={() => logoInputRef.current?.click()}
                 >
-                  Batal
-                </button>
+                  {logoPreview || brandData?.logo_url ? (
+                    <img
+                      src={logoPreview || brandData?.logo_url}
+                      alt="Logo"
+                      onError={(e) => { e.target.src = brandHeroImg; }}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-feast-dark-muted">
+                      <Upload size={18} className="opacity-40" />
+                    </div>
+                  )}
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <Upload size={14} className="text-white" />
+                  </div>
+                </div>
+                <div className="flex-1 space-y-2">
+                  {logoFile ? (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-feast-sunset/5 rounded-xl">
+                      <span className="text-xs font-vietnam text-feast-sunset flex-1 truncate">{logoFile.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => { setLogoFile(null); setLogoPreview(null); }}
+                        className="text-xs text-feast-dark-muted hover:text-red-500 font-vietnam"
+                      >
+                        Batal
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => logoInputRef.current?.click()}
+                      className="flex items-center gap-2 px-4 py-2 bg-feast-surface-low rounded-xl text-xs font-semibold font-vietnam text-feast-dark hover:bg-gray-200 transition-colors"
+                    >
+                      <Upload size={13} />
+                      Upload Logo
+                    </button>
+                  )}
+                  <p className="text-[10px] text-feast-dark-muted">Format JPG/PNG. Disarankan 1:1 (square).</p>
+                </div>
               </div>
-            ) : (
-              <div>
-                <label className="block text-[10px] font-semibold uppercase tracking-[0.15em] text-feast-dark-muted mb-2">
-                  Logo URL
-                </label>
-                <input
-                  type="url"
-                  value={brandData?.logo_url || ''}
-                  onChange={(e) => updateField('logo_url', e.target.value)}
-                  placeholder="https://..."
-                  className="w-full bg-feast-surface-low rounded-xl px-4 py-3 text-sm text-feast-dark font-vietnam focus:outline-none focus:ring-2 focus:ring-feast-sunset/30"
-                />
-              </div>
-            )}
+              <input
+                ref={logoInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleLogoChange}
+              />
+            </div>
           </motion.section>
 
           {/* Operating Hours */}
@@ -412,6 +492,46 @@ const RestaurantProfilePage = () => {
             </div>
           </motion.section>
 
+          {/* Tax & Fees */}
+          <motion.section variants={itemVariants} className="bg-white rounded-3xl p-6 shadow-sm">
+            <div className="flex items-center gap-2 mb-1">
+              <Percent size={15} className="text-feast-sunset" />
+              <h3 className="text-base font-bold font-jakarta text-feast-dark">Pajak & Biaya</h3>
+            </div>
+            <p className="text-[10px] text-feast-dark-muted mb-4">
+              Diterapkan ke semua pesanan baru. Set ke 0 untuk menonaktifkan.
+            </p>
+            <div>
+              <label className="block text-[10px] font-semibold uppercase tracking-[0.15em] text-feast-dark-muted mb-2">
+                Tax Rate (PPN)
+              </label>
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    value={brandData?.tax_rate ?? 0}
+                    onChange={(e) => {
+                      const val = Math.min(100, Math.max(0, parseFloat(e.target.value) || 0));
+                      updateField('tax_rate', val);
+                    }}
+                    className="w-full bg-feast-surface-low rounded-xl px-4 py-3 pr-10 text-sm text-feast-dark font-vietnam focus:outline-none focus:ring-2 focus:ring-feast-sunset/30"
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-feast-dark-muted">
+                    %
+                  </span>
+                </div>
+              </div>
+              {(brandData?.tax_rate > 0) && (
+                <p className="text-[10px] text-feast-sunset mt-2 font-vietnam">
+                  Contoh: pesanan Rp100.000 → pajak Rp{(100000 * (brandData.tax_rate / 100)).toLocaleString('id-ID')}
+                </p>
+              )}
+            </div>
+          </motion.section>
+
           {/* Location */}
           <motion.section variants={itemVariants} className="bg-white rounded-3xl p-6 shadow-sm">
             <div className="flex items-center justify-between mb-3">
@@ -461,12 +581,20 @@ const RestaurantProfilePage = () => {
             ) : null}
             <div className="h-32 bg-feast-surface-low rounded-xl w-full relative overflow-hidden">
               {brandData?.latitude && brandData?.longitude ? (
-                <iframe
-                  title="Lokasi Restoran"
-                  src={`https://www.openstreetmap.org/export/embed.html?bbox=${parseFloat(brandData.longitude)-0.005},${parseFloat(brandData.latitude)-0.005},${parseFloat(brandData.longitude)+0.005},${parseFloat(brandData.latitude)+0.005}&layer=mapnik&marker=${brandData.latitude},${brandData.longitude}`}
-                  className="w-full h-full border-0"
-                  loading="lazy"
-                />
+                <a
+                  href={`https://www.google.com/maps?q=${brandData.latitude},${brandData.longitude}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full h-full flex flex-col items-center justify-center gap-2 hover:bg-feast-surface transition-colors group"
+                >
+                  <MapPin size={20} className="text-feast-sunset" />
+                  <span className="text-xs font-vietnam text-feast-dark font-medium">
+                    {parseFloat(brandData.latitude).toFixed(6)}, {parseFloat(brandData.longitude).toFixed(6)}
+                  </span>
+                  <span className="text-[10px] font-vietnam text-feast-dark-muted flex items-center gap-1 group-hover:text-feast-sunset transition-colors">
+                    Buka di Google Maps <ExternalLink size={10} />
+                  </span>
+                </a>
               ) : (
                 <div className="w-full h-full flex flex-col items-center justify-center text-feast-dark-muted gap-1">
                   <Pencil size={16} className="opacity-40" />

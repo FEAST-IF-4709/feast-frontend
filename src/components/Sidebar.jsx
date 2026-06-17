@@ -12,7 +12,7 @@ import {
   Receipt,
   ShieldCheck,
   Store,
-  Megaphone,
+  Gift,
   LogOut,
   Layers,
 } from 'lucide-react';
@@ -50,7 +50,7 @@ const SIDEBAR_GROUPS = [
     items: [
       { label: 'Roles', path: '/roles', icon: ShieldCheck, permission: 'rbac.role.view' },
       { label: 'Restaurant Profile', path: '/restaurant-profile', icon: Store, permission: null },
-      { label: 'Marketing', path: '/marketing', icon: Megaphone, permission: null },
+      { label: 'Loyalty & Voucher', path: '/marketing', icon: Gift, permission: null },
     ],
   },
 ];
