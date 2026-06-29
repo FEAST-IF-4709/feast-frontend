@@ -40,3 +40,14 @@ export const promotionsApi = {
   update: (id, data) => api.patch(`/catalog/promotions/${id}/`, data),
   delete: (id) => api.delete(`/catalog/promotions/${id}/`),
 };
+
+export const featuredBannerApi = {
+  get: () => api.get('/catalog/featured-banner/'),
+  create: (data) => api.post('/catalog/featured-banner/', data),
+  update: (data) => api.patch('/catalog/featured-banner/', data),
+  delete: () => api.delete('/catalog/featured-banner/'),
+};
+
+export const advertisementApi = {
+  sendPush: (data) => api.post('/catalog/push-notification/', data),
+};

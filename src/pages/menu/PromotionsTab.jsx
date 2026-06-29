@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Pencil, Trash2, Tag } from 'lucide-react';
+import { Plus, Pencil, Trash2, Tag, Flame } from 'lucide-react';
 import { useApi } from '../../hooks/useApi';
 import { usePermission } from '../../hooks/usePermission';
 import { useToast } from '../../hooks/useToast';
@@ -72,6 +72,16 @@ export default function PromotionsTab() {
   const openCreate = () => { setEditingItem(null); setModalOpen(true); };
   const openEdit = (item) => { setEditingItem(item); setModalOpen(true); };
   const handleModalClose = () => { setModalOpen(false); setEditingItem(null); };
+
+  const handleToggleHotDeal = async (promo) => {
+    try {
+      await promotionsApi.update(promo.id, { is_hot_deal: !promo.is_hot_deal });
+      toast.success(promo.is_hot_deal ? 'Dihapus dari Hot Deals' : 'Ditambahkan ke Hot Deals');
+      refetch();
+    } catch (err) {
+      handleApiError(err, { showError: toast.error });
+    }
+  };
 
   const handleDelete = async () => {
     try {
@@ -176,6 +186,20 @@ export default function PromotionsTab() {
                 <div className="px-5 py-4">
                   <div className="flex items-center justify-between mb-2">
                     <StatusBadge variant={status.variant} label={status.label} />
+                    {canUpdate && (
+                      <button
+                        onClick={() => handleToggleHotDeal(promo)}
+                        title={promo.is_hot_deal ? 'Hapus dari Hot Deals' : 'Jadikan Hot Deal'}
+                        className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold font-vietnam transition-colors ${
+                          promo.is_hot_deal
+                            ? 'bg-red-50 text-red-500 hover:bg-red-100'
+                            : 'bg-feast-bg text-feast-dark-muted hover:text-feast-sunset hover:bg-feast-sunset/5'
+                        }`}
+                      >
+                        <Flame size={12} />
+                        {promo.is_hot_deal ? 'Hot Deal' : 'Hot Deal?'}
+                      </button>
+                    )}
                   </div>
                   <p className="text-xs text-feast-dark-muted font-vietnam">
                     {formatDate(promo.starts_at)} — {formatDate(promo.ends_at)}

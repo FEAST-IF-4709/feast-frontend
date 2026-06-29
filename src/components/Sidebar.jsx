@@ -15,6 +15,7 @@ import {
   Gift,
   LogOut,
   Layers,
+  Megaphone,
 } from 'lucide-react';
 import api from '../api/client';
 import { clearTokens, getRefreshToken, hasPermission, isSuperAdmin } from '../api/auth';
@@ -43,6 +44,7 @@ const SIDEBAR_GROUPS = [
       { label: 'Outlets', path: '/outlets', icon: Building2, permission: 'outlet.view' },
       { label: 'Staff', path: '/staff', icon: Users, permission: 'staff.view' },
       { label: 'Orders', path: '/orders', icon: Receipt, permission: 'orders.view' },
+      { label: 'Advertisement', path: '/advertisement', icon: Megaphone, permission: 'products.update' },
     ],
   },
   {

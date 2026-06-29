@@ -26,6 +26,7 @@ const StaffPage = lazy(() => import('./pages/StaffPage'));
 const MenuPage = lazy(() => import('./pages/MenuPage'));
 const OrdersPage = lazy(() => import('./pages/OrdersPage'));
 const BrandsAdminPage = lazy(() => import('./pages/BrandsAdminPage'));
+const AdvertisementPage = lazy(() => import('./pages/AdvertisementPage'));
 
 const App = () => {
   return (
@@ -92,6 +93,14 @@ const App = () => {
             element={
               <ProtectedRoute permission="orders.view">
                 <Suspense fallback={<LoadingSpinner fullPage />}><OrdersPage /></Suspense>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/advertisement"
+            element={
+              <ProtectedRoute permission="products.update">
+                <Suspense fallback={<LoadingSpinner fullPage />}><AdvertisementPage /></Suspense>
               </ProtectedRoute>
             }
           />

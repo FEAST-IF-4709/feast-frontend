@@ -29,6 +29,7 @@ export default function PromotionModal({ isOpen, onClose, editingItem, onSuccess
     starts_date: '', starts_time: '00:00',
     ends_date: '', ends_time: '23:59',
     is_active: true,
+    is_hot_deal: false,
   });
   const [errors, setErrors] = useState({});
   const [isSaving, setIsSaving] = useState(false);
@@ -49,6 +50,7 @@ export default function PromotionModal({ isOpen, onClose, editingItem, onSuccess
         ends_date: toLocalDate(editingItem.ends_at),
         ends_time: toLocalTime(editingItem.ends_at) || '23:59',
         is_active: editingItem.is_active ?? true,
+        is_hot_deal: editingItem.is_hot_deal ?? false,
       });
     } else {
       setForm({
@@ -56,6 +58,7 @@ export default function PromotionModal({ isOpen, onClose, editingItem, onSuccess
         starts_date: '', starts_time: '00:00',
         ends_date: '', ends_time: '23:59',
         is_active: true,
+        is_hot_deal: false,
       });
     }
   }, [isOpen, editingItem]);
@@ -93,6 +96,7 @@ export default function PromotionModal({ isOpen, onClose, editingItem, onSuccess
         starts_at: new Date(`${form.starts_date}T${form.starts_time || '00:00'}`).toISOString(),
         ends_at: new Date(`${form.ends_date}T${form.ends_time || '23:59'}`).toISOString(),
         is_active: form.is_active,
+        is_hot_deal: form.is_hot_deal,
       };
 
       if (editingItem) {
@@ -257,6 +261,20 @@ export default function PromotionModal({ isOpen, onClose, editingItem, onSuccess
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${form.is_active ? 'bg-feast-sunset' : 'bg-gray-300'}`}
                 >
                   <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${form.is_active ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between py-1">
+                <div>
+                  <span className="text-xs font-semibold text-feast-dark-secondary font-vietnam">🔥 Tampilkan sebagai Hot Deal</span>
+                  <p className="text-xs text-feast-dark-muted font-vietnam mt-0.5">Muncul di halaman utama aplikasi mobile</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, is_hot_deal: !form.is_hot_deal })}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${form.is_hot_deal ? 'bg-red-500' : 'bg-gray-300'}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${form.is_hot_deal ? 'translate-x-6' : 'translate-x-1'}`} />
                 </button>
               </div>
 

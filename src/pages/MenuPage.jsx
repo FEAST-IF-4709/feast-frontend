@@ -5,12 +5,14 @@ import CategoriesTab from './menu/CategoriesTab';
 import BrandProductsTab from './menu/BrandProductsTab';
 import OutletProductsTab from './menu/OutletProductsTab';
 import PromotionsTab from './menu/PromotionsTab';
+import FeaturedBannerTab from './menu/FeaturedBannerTab';
 
 const TABS = [
   { key: 'categories', label: 'Kategori' },
   { key: 'brand-products', label: 'Menu Brand' },
   { key: 'outlet-products', label: 'Menu Outlet' },
   { key: 'promotions', label: 'Promosi' },
+  { key: 'featured-banner', label: 'Special Offer' },
 ];
 
 export default function MenuPage() {
@@ -29,6 +31,7 @@ export default function MenuPage() {
           {activeTab === 'brand-products' && <BrandProductsTab />}
           {activeTab === 'outlet-products' && <OutletProductsTab />}
           {activeTab === 'promotions' && <PromotionsTab />}
+          {activeTab === 'featured-banner' && <FeaturedBannerTab />}
         </div>
       </div>
     </div>
